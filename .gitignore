@@ -1,0 +1,11 @@
+/vendor/
+/test-app/
+.env
+.env.backup
+.phpunit.result.cache
+.DS_Store
+/.idea
+/.vscode
+*.log
+/node_modules/
+.claude/
