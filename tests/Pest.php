@@ -1,7 +1,7 @@
 <?php
 
-use Orchestra\Testbench\TestCase;
+use Phoenix1331\LaravelAuthAudit\Tests\Support\FeatureTestCase;
 
 uses(
-    TestCase::class,
+    FeatureTestCase::class,
 )->in('Feature');
