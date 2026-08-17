@@ -1,0 +1,145 @@
+<?php
+
+use Illuminate\Contracts\Auth\Access\Gate;
+use Phoenix1331\LaravelAuthAudit\Data\RouteStatus;
+use Phoenix1331\LaravelAuthAudit\Scanning\AuthorisationDetector;
+use Phoenix1331\LaravelAuthAudit\Scanning\PolicyResolver;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithBareFormRequest;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAllows;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAuthorize;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuth;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithProperFormRequest;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithThisAuthorize;
+use Phoenix1331\LaravelAuthAudit\Tests\Support\RouteEntryFactory;
+
+function makeDetector(array $config = []): AuthorisationDetector
+{
+    $gate = Mockery::mock(Gate::class);
+    $gate->shouldReceive('getPolicyFor')->andReturn(null);
+
+    $policyResolver = new PolicyResolver($gate);
+
+    return new AuthorisationDetector(
+        array_merge(['flag_bare_true_form_requests' => true], $config),
+        $policyResolver,
+    );
+}
+
+it('detects can middleware as authorised', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(middleware: ['auth', 'can:view-reports']);
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->detectedSignal)->toBe('can:view-reports');
+});
+
+it('detects this->authorize() in controller method', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithThisAuthorize::class,
+        action: 'update',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->detectedSignal)->toBe('$this->authorize()');
+});
+
+it('detects Gate::authorize() in controller method', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithGateAuthorize::class,
+        action: 'destroy',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->detectedSignal)->toBe('Gate::authorize()');
+});
+
+it('detects Gate::allows() in controller method', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithGateAllows::class,
+        action: 'export',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->detectedSignal)->toBe('Gate::allows()');
+});
+
+it('flags bare-true form request as unauthorised with anti-pattern', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithBareFormRequest::class,
+        action: 'update',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Unauthorised)
+        ->and($result->antiPattern)->toBe('bare-true-form-request');
+});
+
+it('treats proper form request authorize as authorised', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithProperFormRequest::class,
+        action: 'update',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised);
+});
+
+it('marks controller with no auth check as unauthorised', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithNoAuth::class,
+        action: 'show',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Unauthorised)
+        ->and($result->detectedSignal)->toBeNull();
+});
+
+it('detects custom signal in middleware', function () {
+    $detector = makeDetector(['custom_signals' => ['ensure.team.owner']]);
+    $entry = RouteEntryFactory::make(middleware: ['auth', 'ensure.team.owner']);
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->detectedSignal)->toBe('custom: ensure.team.owner');
+});
+
+it('skips detection on already-skipped entries', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(status: RouteStatus::Skipped);
+    $entry->skipReason = 'excluded via config';
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Skipped);
+});
+
+it('does not flag bare-true form request when config is disabled', function () {
+    $detector = makeDetector(['flag_bare_true_form_requests' => false]);
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithBareFormRequest::class,
+        action: 'update',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->antiPattern)->toBeNull();
+});

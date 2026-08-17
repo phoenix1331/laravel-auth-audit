@@ -213,6 +213,8 @@ class AuthorisationDetector
             return null;
         }
 
+        $useMap = $this->buildUseMap($ast);
+
         foreach ($method->params as $param) {
             $type = $param->type;
 
@@ -221,7 +223,7 @@ class AuthorisationDetector
             }
 
             $className = $type->toString();
-            $resolved = $this->resolveFormRequestClass($className);
+            $resolved = $this->resolveFormRequestClass($className, $useMap);
 
             if ($resolved !== null) {
                 return $resolved;
@@ -231,12 +233,32 @@ class AuthorisationDetector
         return null;
     }
 
-    private function resolveFormRequestClass(string $className): ?string
+    /**
+     * @param  Node[]  $ast
+     * @return array<string, string>
+     */
+    private function buildUseMap(array $ast): array
     {
-        $candidates = [
+        $map = [];
+        $uses = $this->nodeFinder->findInstanceOf($ast, Node\Stmt\UseUse::class);
+
+        foreach ($uses as $use) {
+            $fqn = $use->name->toString();
+            $alias = $use->alias ? $use->alias->toString() : class_basename($fqn);
+            $map[$alias] = $fqn;
+        }
+
+        return $map;
+    }
+
+    /** @param array<string, string> $useMap */
+    private function resolveFormRequestClass(string $className, array $useMap = []): ?string
+    {
+        $candidates = array_unique([
+            $useMap[$className] ?? $className,
             $className,
             'App\\Http\\Requests\\'.$className,
-        ];
+        ]);
 
         foreach ($candidates as $candidate) {
             if (! class_exists($candidate)) {
