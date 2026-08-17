@@ -12,7 +12,7 @@
 
 A developer who adds `auth` middleware to a route has proved who the user is - not that they're allowed to see or edit that specific record. The gap between the two is where IDOR lives. A logged-in user walks `/users/1`, `/users/2`, `/users/3` in the address bar and the app resolves every one, because nothing ever checked whether that user is allowed to see each profile. Auth Audit is a Composer dev-dependency that statically scans your routes, controllers, Form Requests, and Policies to find exactly these gaps, reports them as a coverage percentage, and fails your CI build when coverage drops below a threshold you set.
 
-<img width="3105" height="1646" alt="Laravel Auth Audit HTML Output" src="https://github.com/user-attachments/assets/ed788c79-f38e-4775-b5c7-8bb3da8e7ad7" />
+<img width="838" height="444" alt="Laravel Auth Audit HTML Output" src="https://github.com/user-attachments/assets/ed788c79-f38e-4775-b5c7-8bb3da8e7ad7" />
 
 ---
 
