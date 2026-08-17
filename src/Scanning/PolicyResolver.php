@@ -2,6 +2,4 @@
 
 namespace Phoenix1331\LaravelAuthAudit\Scanning;
 
-class PolicyResolver
-{
-}
+class PolicyResolver {}

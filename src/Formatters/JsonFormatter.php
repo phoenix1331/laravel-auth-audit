@@ -2,6 +2,4 @@
 
 namespace Phoenix1331\LaravelAuthAudit\Formatters;
 
-class JsonFormatter
-{
-}
+class JsonFormatter {}
