@@ -1,6 +1,7 @@
 {
     "name": "phoenix1331/laravel-auth-audit",
     "description": "Authorisation coverage reporting for Laravel applications. Statically scans routes, controllers, Form Requests, and Policies to report what is and is not protected.",
+    "version": "2.0.0",
     "type": "library",
     "license": "MIT",
     "keywords": [
@@ -10,9 +11,11 @@
         "authorization",
         "audit",
         "idor",
+        "idor-detection",
         "owasp",
         "access-control",
-        "static-analysis"
+        "static-analysis",
+        "baseline"
     ],
     "homepage": "https://github.com/phoenix1331/laravel-auth-audit",
     "authors": [
