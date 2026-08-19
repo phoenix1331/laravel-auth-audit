@@ -19,6 +19,10 @@ class HtmlFormatter
         $exclusionRows = $this->buildExclusionRows($report->routes);
         $deltaHtml = $this->buildDeltaHtml($delta, $skippedDelta);
         $generated = date('Y-m-d H:i:s');
+        $baselinedMeta = $report->baselinedCount > 0 ? " &middot; {$report->baselinedCount} baselined" : '';
+        $staleHtml = $report->staleBaselineCount > 0
+            ? "<div class=\"stale-warning\">&#9888; {$report->staleBaselineCount} stale baseline ".($report->staleBaselineCount === 1 ? 'entry' : 'entries').' detected - run --generate-baseline to update.</div>'
+            : '';
 
         return <<<HTML
         <!DOCTYPE html>
@@ -64,6 +68,8 @@ class HtmlFormatter
                 .badge.unauthorised { background: #450a0a; color: #ef4444; }
                 .badge.skipped { background: #1e293b; color: #64748b; }
                 .badge.partial { background: #451a03; color: #f59e0b; }
+                .badge.baselined { background: #1e3a5f; color: #60a5fa; }
+                .stale-warning { background: #1c1917; border: 1px solid #78350f; color: #fbbf24; border-radius: 6px; padding: 0.75rem 1rem; font-size: 0.8125rem; margin-bottom: 1.5rem; }
                 .method { font-family: monospace; font-size: 0.75rem; background: #1e293b; padding: 0.15rem 0.4rem; border-radius: 3px; color: #94a3b8; }
                 .uri { font-family: monospace; color: #a5b4fc; }
                 .signal { font-family: monospace; font-size: 0.75rem; color: #64748b; }
@@ -86,7 +92,7 @@ class HtmlFormatter
                         <div class="coverage-meta">
                             {$deltaHtml}
                             {$report->authorisedCount} of {$report->totalRoutes} routes authorised<br>
-                            {$report->unauthorisedCount} unauthorised &middot; {$report->skippedCount} skipped &middot; {$report->excludedCount} excluded<br>
+                            {$report->unauthorisedCount} unauthorised &middot; {$report->skippedCount} skipped &middot; {$report->excludedCount} excluded{$baselinedMeta}<br>
                             Generated {$generated}
                         </div>
                     </div>
@@ -102,7 +108,9 @@ class HtmlFormatter
                         <button class="filter-btn" onclick="setFilter('unauthorised', this)">Unauthorised</button>
                         <button class="filter-btn" onclick="setFilter('authorised', this)">Authorised</button>
                         <button class="filter-btn" onclick="setFilter('skipped', this)">Skipped</button>
+                        <button class="filter-btn" onclick="setFilter('baselined', this)">Baselined</button>
                     </div>
+                    {$staleHtml}
                     <table id="routeTable">
                         <thead>
                             <tr>
@@ -270,6 +278,7 @@ class HtmlFormatter
             RouteStatus::Unauthorised => '<span class="badge unauthorised">✗ unauthorised</span>',
             RouteStatus::Partial => '<span class="badge partial">~ partial</span>',
             RouteStatus::Skipped => '<span class="badge skipped">- skipped</span>',
+            RouteStatus::Baselined => '<span class="badge baselined">~ baselined</span>',
         };
     }
 
