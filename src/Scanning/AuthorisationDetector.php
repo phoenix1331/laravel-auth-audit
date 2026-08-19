@@ -6,6 +6,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Phoenix1331\LaravelAuthAudit\Data\RouteEntry;
 use Phoenix1331\LaravelAuthAudit\Data\RouteStatus;
 use PhpParser\Node;
+use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
@@ -69,6 +70,13 @@ class AuthorisationDetector
                 $ast = $this->parseFile($controllerFile);
 
                 if ($ast !== null) {
+                    if ($entry->boundModels !== [] && $this->detectClassLevelCheckOnInstanceRoute($ast, $entry->action)) {
+                        $entry->status = RouteStatus::Unauthorised;
+                        $entry->antiPattern = 'class-level-check-on-instance-route';
+
+                        return $entry;
+                    }
+
                     if ($signal = $this->detectInControllerMethod($ast, $entry->action)) {
                         $entry->status = RouteStatus::Authorised;
                         $entry->detectedSignal = $signal;
@@ -160,6 +168,60 @@ class AuthorisationDetector
         }
 
         return null;
+    }
+
+    /** @param Node[] $ast */
+    private function detectClassLevelCheckOnInstanceRoute(array $ast, string $methodName): bool
+    {
+        $method = $this->findMethod($ast, $methodName);
+
+        if ($method === null) {
+            return false;
+        }
+
+        foreach ($this->nodeFinder->findInstanceOf($method, MethodCall::class) as $call) {
+            if (! $call->name instanceof Identifier || $call->name->name !== 'authorize') {
+                continue;
+            }
+
+            if ($this->secondArgIsClassConst($call->args)) {
+                return true;
+            }
+        }
+
+        foreach ($this->nodeFinder->findInstanceOf($method, StaticCall::class) as $call) {
+            if (! $call->class instanceof Name || ! $call->name instanceof Identifier) {
+                continue;
+            }
+
+            if ($call->class->toString() !== 'Gate') {
+                continue;
+            }
+
+            if (! in_array($call->name->name, ['authorize', 'allows', 'check', 'any', 'none'], true)) {
+                continue;
+            }
+
+            if ($this->secondArgIsClassConst($call->args)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param Arg[] $args */
+    private function secondArgIsClassConst(array $args): bool
+    {
+        if (count($args) < 2) {
+            return false;
+        }
+
+        $second = $args[1]->value;
+
+        return $second instanceof Node\Expr\ClassConstFetch
+            && $second->name instanceof Identifier
+            && $second->name->name === 'class';
     }
 
     /** @param Node[] $ast */

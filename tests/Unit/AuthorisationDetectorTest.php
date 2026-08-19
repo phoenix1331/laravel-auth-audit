@@ -5,11 +5,14 @@ use Phoenix1331\LaravelAuthAudit\Data\RouteStatus;
 use Phoenix1331\LaravelAuthAudit\Scanning\AuthorisationDetector;
 use Phoenix1331\LaravelAuthAudit\Scanning\PolicyResolver;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithBareFormRequest;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithClassLevelCheck;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAllows;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAuthorize;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateClassLevelCheck;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuth;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithProperFormRequest;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithThisAuthorize;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Models\Order;
 use Phoenix1331\LaravelAuthAudit\Tests\Support\RouteEntryFactory;
 
 function makeDetector(array $config = []): AuthorisationDetector
@@ -170,6 +173,61 @@ it('does not flag unscoped-nested-binding when entry is skipped', function () {
     $result = $detector->detect($entry);
 
     expect($result->status)->toBe(RouteStatus::Skipped)
+        ->and($result->antiPattern)->toBeNull();
+});
+
+it('flags class-level-check-on-instance-route for $this->authorize() with ::class', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithClassLevelCheck::class,
+        action: 'update',
+        boundModels: [Order::class],
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Unauthorised)
+        ->and($result->antiPattern)->toBe('class-level-check-on-instance-route');
+});
+
+it('flags class-level-check-on-instance-route for Gate::authorize() with ::class', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithGateClassLevelCheck::class,
+        action: 'update',
+        boundModels: [Order::class],
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Unauthorised)
+        ->and($result->antiPattern)->toBe('class-level-check-on-instance-route');
+});
+
+it('does not flag class-level-check when route has no bound models', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithClassLevelCheck::class,
+        action: 'update',
+        boundModels: [],
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->antiPattern)->not->toBe('class-level-check-on-instance-route');
+});
+
+it('does not flag class-level-check when authorize() uses a variable', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithThisAuthorize::class,
+        action: 'update',
+        boundModels: [Order::class],
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
         ->and($result->antiPattern)->toBeNull();
 });
 

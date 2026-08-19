@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithClassAttribute;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithClassLevelCheck;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithExpiredAttribute;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAuthorize;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNestedBinding;
@@ -113,4 +114,11 @@ it('does not flag unscoped-nested-binding on a single-model route', function () 
 
     $this->artisan('auth-audit:run', ['--min' => 0])
         ->expectsOutputToContain('authorised');
+});
+
+it('flags class-level-check-on-instance-route anti-pattern in output', function () {
+    Route::put('/orders/{order}', [ControllerWithClassLevelCheck::class, 'update']);
+
+    $this->artisan('auth-audit:run', ['--min' => 0])
+        ->expectsOutputToContain('class-level-check-on-instance-route');
 });
