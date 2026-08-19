@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-19
+
+### Added
+
+- Five new anti-pattern detections in `AuthorisationDetector`:
+  - `unscoped-nested-binding` - routes with two or more bound model params where neither `->scopeBindings()` nor the parent-child naming convention applies
+  - `class-level-check-on-instance-route` - `authorize()` or `Gate::*` called with `Model::class` instead of the bound instance
+  - `instance-blind-policy` - policy method that has no model parameter or never references it in the method body (requires AST parsing of the policy file)
+  - `unbound-identifier` - raw scalar param (`{id}`) with an unscoped `find`, `findOrFail`, `firstWhere`, or `where('id', ...)` in the controller body
+  - `discarded-gate-result` - `Gate::allows()`, `Gate::check()`, or `Gate::any()` called as a bare statement whose return value is never used
+- New positive signals recognised as authorised:
+  - Relationship-scoped retrieval: `$request->user()->orders()->findOrFail($id)` and `auth()->user()->posts()->findOrFail($id)`
+  - `$this->authorizeResource()` in the controller constructor
+  - Route `->can('ability', 'model')` middleware (via existing middleware tier)
+  - `abort_unless($user->can(...))` and `abort_if(!$user->can(...))`
+  - `Gate::inspect()` with the result acted on
+- Instance-scoped Form Request label: Form Requests whose `authorize()` method references `$this->route()` are now labelled `[instance-scoped]` in output rather than a generic signal
+- `PolicyResolver::isPolicyMethodInstanceBlind()` - AST parsing of policy method bodies to detect policies that never reference the model parameter
+- `--generate-baseline` flag on `auth-audit:run` - writes all current violations to a JSON file keyed by route signature (`METHOD::uri::controller::action`)
+- `--compare` flag updated to consume the new baseline format; violations matching a baseline entry are marked `baselined` and excluded from the coverage percentage
+- `RouteStatus::Baselined` enum case
+- Stale baseline entry reporting - baseline entries that no longer match any registered route are counted and reported in console, JSON, and HTML output
+- `baseline_path` key in `config/auth-audit.php` (default: `base_path('auth-audit-baseline.json')`)
+- `baselined_count` and `stale_baseline_count` in JSON formatter output
+- Baselined count in the console summary line
+- Stale baseline warning in console output and HTML report
+- `SECURITY.md` - vulnerability reporting policy
+- `UPGRADING.md` - per-anti-pattern migration guide with before/after code examples and incremental adoption instructions
+
+### Changed
+
+- `AuthorisationDetector::detect()` restructured into `runSignalChecks()` with post-checks for anti-patterns that must override an existing positive signal (`unscoped-nested-binding`, `unbound-identifier`)
+- Tier 3 policy detection now parses the policy method body in addition to checking method existence
+- `--compare` flag previously expected a raw JSON report; it now expects the new baseline format (see UPGRADING.md)
+- Console summary line now shows baselined count when non-zero
+- HTML report Baselined filter button and `baselined` badge added
+- Roadmap updated to reflect v2 shipping; runtime detection tier moved to v3
+
+### Fixed
+
+- `Gate::inspect()` was not previously recognised as an authorisation signal
+
 ## [1.0.0] - Unreleased
 
 ### Added
