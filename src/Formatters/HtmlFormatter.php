@@ -274,11 +274,11 @@ class HtmlFormatter
     private function buildStatusBadge(RouteEntry $entry): string
     {
         return match ($entry->status) {
-            RouteStatus::Authorised => '<span class="badge authorised">✓ authorised</span>',
-            RouteStatus::Unauthorised => '<span class="badge unauthorised">✗ unauthorised</span>',
-            RouteStatus::Partial => '<span class="badge partial">~ partial</span>',
-            RouteStatus::Skipped => '<span class="badge skipped">- skipped</span>',
-            RouteStatus::Baselined => '<span class="badge baselined">~ baselined</span>',
+            RouteStatus::Authorised => '<span class="badge authorised">authorised</span>',
+            RouteStatus::Unauthorised => '<span class="badge unauthorised">unauthorised</span>',
+            RouteStatus::Partial => '<span class="badge partial">partial</span>',
+            RouteStatus::Skipped => '<span class="badge skipped">skipped</span>',
+            RouteStatus::Baselined => '<span class="badge baselined">baselined</span>',
         };
     }
 
