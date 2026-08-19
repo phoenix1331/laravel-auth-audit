@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithClassAttribute;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithExpiredAttribute;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAuthorize;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNestedBinding;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuth;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithThisAuthorize;
 
@@ -98,4 +99,18 @@ it('exits cleanly when auth-audit is disabled via config', function () {
 
     $this->artisan('auth-audit:run')
         ->assertSuccessful();
+});
+
+it('flags unscoped-nested-binding anti-pattern on a route with two bound models', function () {
+    Route::get('/teams/{team}/orders/{order}', [ControllerWithNestedBinding::class, 'show']);
+
+    $this->artisan('auth-audit:run', ['--min' => 0])
+        ->expectsOutputToContain('unscoped-nested-binding');
+});
+
+it('does not flag unscoped-nested-binding on a single-model route', function () {
+    Route::get('/orders/{order}', [ControllerWithThisAuthorize::class, 'update']);
+
+    $this->artisan('auth-audit:run', ['--min' => 0])
+        ->expectsOutputToContain('authorised');
 });

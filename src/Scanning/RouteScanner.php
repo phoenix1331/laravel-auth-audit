@@ -33,6 +33,8 @@ class RouteScanner
         $controller = $this->resolveController($route);
         $action = $this->resolveAction($route);
         $boundModels = $this->resolveBoundModels($route);
+        $rawScalarParams = $this->resolveRawScalarParams($route);
+        $unscopedNestedBinding = $this->detectUnscopedNestedBinding($route, $boundModels);
         $uri = $route->uri();
         $method = implode('|', $route->methods());
 
@@ -44,6 +46,8 @@ class RouteScanner
             action: $action,
             boundModels: $boundModels,
             middleware: $middleware,
+            rawScalarParams: $rawScalarParams,
+            unscopedNestedBinding: $unscopedNestedBinding,
         );
 
         if ($this->isExcludedByMiddleware($middleware)) {
@@ -159,5 +163,51 @@ class RouteScanner
         $action = $route->getAction();
 
         return $action['without_auth_audit'] ?? null;
+    }
+
+    private function resolveRawScalarParams(Route $route): array
+    {
+        $paramNames = $route->parameterNames();
+        $boundNames = [];
+
+        foreach ($route->signatureParameters() as $parameter) {
+            $type = $parameter->getType();
+
+            if ($type instanceof \ReflectionNamedType && ! $type->isBuiltin()) {
+                $boundNames[] = $parameter->getName();
+            }
+        }
+
+        return array_values(array_diff($paramNames, $boundNames));
+    }
+
+    /** @param string[] $boundModels */
+    private function detectUnscopedNestedBinding(Route $route, array $boundModels): bool
+    {
+        if (count($boundModels) < 2) {
+            return false;
+        }
+
+        if ($route->enforcesScopedBindings()) {
+            return false;
+        }
+
+        // Laravel auto-scopes when the child param name is prefixed with the parent
+        // singular name followed by underscore (e.g. {user} + {user_post}).
+        // Detect that convention to avoid flagging routes that are implicitly scoped.
+        $paramNames = $route->parameterNames();
+        foreach ($paramNames as $i => $name) {
+            if ($i === 0) {
+                continue;
+            }
+
+            foreach (array_slice($paramNames, 0, $i) as $parent) {
+                if (str_starts_with($name, $parent.'_')) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 }

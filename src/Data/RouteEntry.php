@@ -12,6 +12,8 @@ class RouteEntry
         public readonly ?string $action,
         public readonly array $boundModels,
         public readonly array $middleware,
+        public readonly array $rawScalarParams = [],
+        public readonly bool $unscopedNestedBinding = false,
         public RouteStatus $status = RouteStatus::Unauthorised,
         public ?string $detectedSignal = null,
         public ?string $skipReason = null,

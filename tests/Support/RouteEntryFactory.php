@@ -14,6 +14,8 @@ class RouteEntryFactory
         ?string $action = null,
         array $middleware = [],
         array $boundModels = [],
+        array $rawScalarParams = [],
+        bool $unscopedNestedBinding = false,
         RouteStatus $status = RouteStatus::Unauthorised,
     ): RouteEntry {
         return new RouteEntry(
@@ -24,6 +26,8 @@ class RouteEntryFactory
             action: $action,
             boundModels: $boundModels,
             middleware: $middleware,
+            rawScalarParams: $rawScalarParams,
+            unscopedNestedBinding: $unscopedNestedBinding,
             status: $status,
         );
     }

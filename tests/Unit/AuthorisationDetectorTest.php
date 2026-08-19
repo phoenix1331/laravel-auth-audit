@@ -143,3 +143,47 @@ it('does not flag bare-true form request when config is disabled', function () {
 
     expect($result->antiPattern)->toBeNull();
 });
+
+it('flags unscoped-nested-binding even when a check exists', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        uri: 'teams/{team}/orders/{order}',
+        controller: ControllerWithThisAuthorize::class,
+        action: 'update',
+        unscopedNestedBinding: true,
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Unauthorised)
+        ->and($result->antiPattern)->toBe('unscoped-nested-binding');
+});
+
+it('does not flag unscoped-nested-binding when entry is skipped', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        uri: 'teams/{team}/orders/{order}',
+        unscopedNestedBinding: true,
+        status: RouteStatus::Skipped,
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Skipped)
+        ->and($result->antiPattern)->toBeNull();
+});
+
+it('does not flag unscoped-nested-binding when only one bound model', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        uri: 'orders/{order}',
+        controller: ControllerWithThisAuthorize::class,
+        action: 'update',
+        unscopedNestedBinding: false,
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->antiPattern)->toBeNull();
+});

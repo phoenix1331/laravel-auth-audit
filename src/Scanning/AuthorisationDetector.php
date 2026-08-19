@@ -36,6 +36,18 @@ class AuthorisationDetector
             return $entry;
         }
 
+        $entry = $this->runSignalChecks($entry);
+
+        if ($entry->unscopedNestedBinding && $entry->status === RouteStatus::Authorised) {
+            $entry->status = RouteStatus::Unauthorised;
+            $entry->antiPattern = 'unscoped-nested-binding';
+        }
+
+        return $entry;
+    }
+
+    private function runSignalChecks(RouteEntry $entry): RouteEntry
+    {
         if ($signal = $this->detectCanMiddleware($entry->middleware)) {
             $entry->status = RouteStatus::Authorised;
             $entry->detectedSignal = $signal;
@@ -93,6 +105,13 @@ class AuthorisationDetector
         if ($signal = $this->detectCustomSignalInController($entry->controller)) {
             $entry->status = RouteStatus::Authorised;
             $entry->detectedSignal = $signal;
+
+            return $entry;
+        }
+
+        if ($entry->unscopedNestedBinding) {
+            $entry->status = RouteStatus::Unauthorised;
+            $entry->antiPattern = 'unscoped-nested-binding';
 
             return $entry;
         }
