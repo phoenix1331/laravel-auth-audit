@@ -11,6 +11,7 @@ use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAu
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateClassLevelCheck;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuth;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithProperFormRequest;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithRelationshipScope;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithThisAuthorize;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithUnscopedFind;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithUnscopedRequestFind;
@@ -179,6 +180,38 @@ it('flags unbound-identifier when controller uses find with $request->id', funct
 
     expect($result->status)->toBe(RouteStatus::Unauthorised)
         ->and($result->antiPattern)->toBe('unbound-identifier');
+});
+
+it('counts relationship-scoped retrieval via $request->user() as authorised', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        uri: 'orders/{id}',
+        controller: ControllerWithRelationshipScope::class,
+        action: 'show',
+        rawScalarParams: ['id'],
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->detectedSignal)->toBe('relationship-scoped retrieval')
+        ->and($result->antiPattern)->toBeNull();
+});
+
+it('counts relationship-scoped retrieval via auth()->user() as authorised', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        uri: 'posts/{id}',
+        controller: ControllerWithRelationshipScope::class,
+        action: 'showViaAuth',
+        rawScalarParams: ['id'],
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->detectedSignal)->toBe('relationship-scoped retrieval')
+        ->and($result->antiPattern)->toBeNull();
 });
 
 it('does not flag unbound-identifier when route has no raw scalar params', function () {

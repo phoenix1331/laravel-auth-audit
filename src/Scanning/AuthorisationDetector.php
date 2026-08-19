@@ -261,6 +261,10 @@ class AuthorisationDetector
             return $signal;
         }
 
+        if ($signal = $this->detectRelationshipScopedRetrieval($method)) {
+            return $signal;
+        }
+
         return null;
     }
 
@@ -303,6 +307,61 @@ class AuthorisationDetector
         }
 
         return null;
+    }
+
+    private function detectRelationshipScopedRetrieval(ClassMethod $method): ?string
+    {
+        $retrievalMethods = ['find', 'findOrFail', 'firstWhere', 'where', 'first'];
+
+        foreach ($this->nodeFinder->findInstanceOf($method, MethodCall::class) as $call) {
+            if (! $call->name instanceof Identifier) {
+                continue;
+            }
+
+            if (! in_array($call->name->name, $retrievalMethods, true)) {
+                continue;
+            }
+
+            if ($this->isRelationshipScopedChain($call->var)) {
+                return 'relationship-scoped retrieval';
+            }
+        }
+
+        return null;
+    }
+
+    private function isRelationshipScopedChain(Node $node): bool
+    {
+        // Matches: $request->user()->relationship() or auth()->user()->relationship()
+        if (! $node instanceof MethodCall) {
+            return false;
+        }
+
+        // The immediate receiver must be a method call (the relationship)
+        $receiver = $node->var;
+
+        if (! $receiver instanceof MethodCall) {
+            return false;
+        }
+
+        // Check for ->user() call
+        if ($receiver->name instanceof Identifier && $receiver->name->name === 'user') {
+            $root = $receiver->var;
+
+            // $request->user()
+            if ($root instanceof Node\Expr\Variable && $root->name === 'request') {
+                return true;
+            }
+
+            // auth()->user()
+            if ($root instanceof Node\Expr\FuncCall
+                && $root->name instanceof Name
+                && $root->name->toString() === 'auth') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @param Node[] $ast */

@@ -9,6 +9,7 @@ use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAu
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNestedBinding;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuth;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuthAndModel;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithRelationshipScope;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithThisAuthorize;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithUnscopedFind;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Models\Order;
@@ -150,4 +151,11 @@ it('flags unbound-identifier on a route with a raw scalar param and unscoped fin
 
     $this->artisan('auth-audit:run', ['--min' => 0])
         ->expectsOutputToContain('unbound-identifier');
+});
+
+it('counts relationship-scoped retrieval as authorised and does not flag unbound-identifier', function () {
+    Route::get('/orders/{id}', [ControllerWithRelationshipScope::class, 'show']);
+
+    $this->artisan('auth-audit:run', ['--min' => 0])
+        ->expectsOutputToContain('authorised');
 });
