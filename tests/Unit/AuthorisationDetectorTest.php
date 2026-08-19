@@ -13,7 +13,9 @@ use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAl
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAuthorize;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateClassLevelCheck;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateInspect;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithInstanceScopedFormRequest;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuth;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNonScopedFormRequest;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithProperFormRequest;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithRelationshipScope;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithThisAuthorize;
@@ -410,6 +412,32 @@ it('counts Gate::inspect() as authorised', function () {
 
     expect($result->status)->toBe(RouteStatus::Authorised)
         ->and($result->detectedSignal)->toBe('Gate::inspect()');
+});
+
+it('marks form request with $this->route() as instance-scoped in the detected signal', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithInstanceScopedFormRequest::class,
+        action: 'update',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->detectedSignal)->toContain('[instance-scoped]');
+});
+
+it('marks plain form request authorize without $this->route() without instance-scoped label', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithNonScopedFormRequest::class,
+        action: 'update',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->detectedSignal)->not->toContain('[instance-scoped]');
 });
 
 it('flags discarded-gate-result when Gate::allows() return value is not used', function () {

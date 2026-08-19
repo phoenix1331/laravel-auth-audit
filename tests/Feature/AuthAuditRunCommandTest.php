@@ -10,6 +10,7 @@ use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithDiscar
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithExpiredAttribute;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAuthorize;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateInspect;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithInstanceScopedFormRequest;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNestedBinding;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuth;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuthAndModel;
@@ -183,6 +184,13 @@ it('counts Gate::inspect() as authorised', function () {
 
     $this->artisan('auth-audit:run', ['--min' => 0])
         ->expectsOutputToContain('authorised');
+});
+
+it('marks instance-scoped form request with [instance-scoped] label in output', function () {
+    Route::put('/orders/{order}', [ControllerWithInstanceScopedFormRequest::class, 'update']);
+
+    $this->artisan('auth-audit:run', ['--min' => 0])
+        ->expectsOutputToContain('instance-scoped');
 });
 
 it('flags discarded-gate-result anti-pattern in output', function () {

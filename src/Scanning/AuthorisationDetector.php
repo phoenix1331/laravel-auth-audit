@@ -121,8 +121,12 @@ class AuthorisationDetector
                             return $entry;
                         }
 
+                        $suffix = $this->isFormRequestInstanceScoped($formRequestClass)
+                            ? '::authorize() [instance-scoped]'
+                            : '::authorize()';
+
                         $entry->status = RouteStatus::Authorised;
-                        $entry->detectedSignal = $formRequestClass.'::authorize()';
+                        $entry->detectedSignal = $formRequestClass.$suffix;
 
                         return $entry;
                     }
@@ -543,6 +547,39 @@ class AuthorisationDetector
         }
 
         return null;
+    }
+
+    private function isFormRequestInstanceScoped(string $formRequestClass): bool
+    {
+        $file = $this->resolveClassFile($formRequestClass);
+
+        if ($file === null || ! file_exists($file)) {
+            return false;
+        }
+
+        $ast = $this->parseFile($file);
+
+        if ($ast === null) {
+            return false;
+        }
+
+        $method = $this->findMethod($ast, 'authorize');
+
+        if ($method === null) {
+            return false;
+        }
+
+        foreach ($this->nodeFinder->findInstanceOf($method, MethodCall::class) as $call) {
+            if (! $call->var instanceof Node\Expr\Variable || $call->var->name !== 'this') {
+                continue;
+            }
+
+            if ($call->name instanceof Identifier && $call->name->name === 'route') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isFormRequestBareTrueAuthorize(string $formRequestClass): bool
