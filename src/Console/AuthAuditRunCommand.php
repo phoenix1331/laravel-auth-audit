@@ -5,6 +5,7 @@ namespace Phoenix1331\LaravelAuthAudit\Console;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Auth\Access\Gate;
 use Illuminate\Routing\Router;
+use Phoenix1331\LaravelAuthAudit\Baseline\BaselineWriter;
 use Phoenix1331\LaravelAuthAudit\Data\AuditReport;
 use Phoenix1331\LaravelAuthAudit\Data\RouteEntry;
 use Phoenix1331\LaravelAuthAudit\Data\RouteStatus;
@@ -22,7 +23,8 @@ class AuthAuditRunCommand extends Command
                             {--min= : Minimum coverage percentage required (overrides config)}
                             {--json : Output results as JSON}
                             {--html= : Write a self-contained HTML report to this path}
-                            {--compare= : Path to a previous JSON report for delta comparison}';
+                            {--compare= : Path to a previous JSON report for delta comparison}
+                            {--generate-baseline : Write current violations to baseline file and exit}';
 
     protected $description = 'Scan Laravel routes for missing authorisation checks and report coverage';
 
@@ -49,8 +51,15 @@ class AuthAuditRunCommand extends Command
             return $detector->detect($entry);
         }, $entries);
 
-        $baseline = $this->loadBaseline();
+        $baselineWriter = new BaselineWriter;
+        $baseline = $this->loadBaseline($config, $baselineWriter);
         $report = $this->buildReport($entries, $baseline);
+
+        if ($this->option('generate-baseline')) {
+            $this->writeBaseline($report, $config, $baselineWriter);
+
+            return self::SUCCESS;
+        }
 
         if ($this->option('json')) {
             $this->line((new JsonFormatter)->render($report));
@@ -122,17 +131,22 @@ class AuthAuditRunCommand extends Command
         $this->line("  <info>HTML report written to {$path}</info>");
     }
 
-    private function loadBaseline(): ?array
+    private function loadBaseline(array $config, BaselineWriter $writer): ?array
     {
-        $path = $this->option('compare');
+        $path = $this->option('compare') ?? ($config['baseline_path'] ?? null);
 
-        if ($path === null || ! file_exists($path)) {
+        if ($path === null) {
             return null;
         }
 
-        $decoded = json_decode(file_get_contents($path), true);
+        return $writer->load($path);
+    }
 
-        return is_array($decoded) ? $decoded : null;
+    private function writeBaseline(AuditReport $report, array $config, BaselineWriter $writer): void
+    {
+        $path = $this->option('compare') ?? ($config['baseline_path'] ?? base_path('auth-audit-baseline.json'));
+        $writer->write($report, $path);
+        $this->line("  <info>Baseline written to {$path} ({$report->unauthorisedCount} violations recorded).</info>");
     }
 
     private function resolveMinCoverage(array $config): int

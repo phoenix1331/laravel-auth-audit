@@ -82,4 +82,11 @@ return [
      */
     'require_exclusion_reasons' => true,
 
+    /*
+     * Path where --generate-baseline writes the baseline file, and where
+     * subsequent runs load it from when no --compare path is given.
+     * Commit this file to version control so CI can compare against it.
+     */
+    'baseline_path' => base_path('auth-audit-baseline.json'),
+
 ];

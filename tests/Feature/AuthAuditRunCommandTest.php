@@ -199,3 +199,42 @@ it('flags discarded-gate-result anti-pattern in output', function () {
     $this->artisan('auth-audit:run', ['--min' => 0])
         ->expectsOutputToContain('discarded-gate-result');
 });
+
+it('writes a baseline file when --generate-baseline is passed', function () {
+    $path = sys_get_temp_dir().'/auth-audit-baseline-'.uniqid().'.json';
+    Route::get('/users/{id}', [ControllerWithNoAuth::class, 'show']);
+
+    $this->artisan('auth-audit:run', ['--generate-baseline' => true, '--compare' => $path])
+        ->assertSuccessful();
+
+    expect(file_exists($path))->toBeTrue();
+    $data = json_decode(file_get_contents($path), true);
+    expect($data)->toBeArray();
+
+    unlink($path);
+});
+
+it('baseline file is keyed by route signature', function () {
+    $path = sys_get_temp_dir().'/auth-audit-baseline-'.uniqid().'.json';
+    Route::get('/users/{id}', [ControllerWithNoAuth::class, 'show']);
+
+    $this->artisan('auth-audit:run', ['--generate-baseline' => true, '--compare' => $path])
+        ->assertSuccessful();
+
+    $data = json_decode(file_get_contents($path), true);
+    $keys = array_keys($data);
+    expect($keys)->not->toBeEmpty();
+    expect($keys[0])->toContain('GET');
+
+    unlink($path);
+});
+
+it('exits successfully when --generate-baseline is passed regardless of coverage', function () {
+    $path = sys_get_temp_dir().'/auth-audit-baseline-'.uniqid().'.json';
+    Route::get('/users/{id}', [ControllerWithNoAuth::class, 'show']);
+
+    $this->artisan('auth-audit:run', ['--generate-baseline' => true, '--compare' => $path, '--min' => 100])
+        ->assertSuccessful();
+
+    unlink($path);
+});
