@@ -2,7 +2,10 @@
 
 use Illuminate\Contracts\Auth\Access\Gate;
 use Phoenix1331\LaravelAuthAudit\Scanning\PolicyResolver;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Policies\InstanceBlindPolicy;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Policies\InstanceScopedPolicy;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Policies\OrderPolicy;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Policies\UnusedParamPolicy;
 
 function makePolicyResolver(?string $policyClass = null): PolicyResolver
 {
@@ -74,4 +77,28 @@ it('returns null when no policy is registered', function () {
     $resolver = makePolicyResolver(null);
 
     expect($resolver->resolveForRoute('App\\Models\\Order', 'update'))->toBeNull();
+});
+
+it('detects instance-blind policy with no model param', function () {
+    $resolver = makePolicyResolver(InstanceBlindPolicy::class);
+
+    expect($resolver->isPolicyMethodInstanceBlind(InstanceBlindPolicy::class, 'update'))->toBeTrue();
+});
+
+it('detects instance-blind policy with unused model param', function () {
+    $resolver = makePolicyResolver(UnusedParamPolicy::class);
+
+    expect($resolver->isPolicyMethodInstanceBlind(UnusedParamPolicy::class, 'update'))->toBeTrue();
+});
+
+it('does not flag a policy that references the model param', function () {
+    $resolver = makePolicyResolver(InstanceScopedPolicy::class);
+
+    expect($resolver->isPolicyMethodInstanceBlind(InstanceScopedPolicy::class, 'update'))->toBeFalse();
+});
+
+it('returns false for isPolicyMethodInstanceBlind when method does not exist', function () {
+    $resolver = makePolicyResolver(InstanceScopedPolicy::class);
+
+    expect($resolver->isPolicyMethodInstanceBlind(InstanceScopedPolicy::class, 'nonExistent'))->toBeFalse();
 });

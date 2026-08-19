@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithClassAttribute;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithClassLevelCheck;
@@ -7,7 +8,11 @@ use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithExpire
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAuthorize;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNestedBinding;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuth;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuthAndModel;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithThisAuthorize;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Models\Order;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Policies\InstanceBlindPolicy;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Policies\InstanceScopedPolicy;
 
 it('runs successfully and outputs a coverage summary', function () {
     Route::get('/orders/{order}', [ControllerWithThisAuthorize::class, 'update']);
@@ -121,4 +126,20 @@ it('flags class-level-check-on-instance-route anti-pattern in output', function 
 
     $this->artisan('auth-audit:run', ['--min' => 0])
         ->expectsOutputToContain('class-level-check-on-instance-route');
+});
+
+it('flags instance-blind-policy when policy method has no model param', function () {
+    Gate::policy(Order::class, InstanceBlindPolicy::class);
+    Route::put('/orders/{order}', [ControllerWithNoAuthAndModel::class, 'update']);
+
+    $this->artisan('auth-audit:run', ['--min' => 0])
+        ->expectsOutputToContain('instance-blind-policy');
+});
+
+it('does not flag instance-blind-policy when policy method references the model', function () {
+    Gate::policy(Order::class, InstanceScopedPolicy::class);
+    Route::put('/orders/{order}', [ControllerWithNoAuthAndModel::class, 'update']);
+
+    $this->artisan('auth-audit:run', ['--min' => 0])
+        ->expectsOutputToContain('authorised');
 });

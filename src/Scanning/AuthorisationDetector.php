@@ -103,6 +103,13 @@ class AuthorisationDetector
 
         foreach ($entry->boundModels as $modelClass) {
             if ($signal = $this->detectPolicyMatch($modelClass, $entry->action)) {
+                if ($this->isPolicyInstanceBlind($modelClass, $entry->action)) {
+                    $entry->status = RouteStatus::Unauthorised;
+                    $entry->antiPattern = 'instance-blind-policy';
+
+                    return $entry;
+                }
+
                 $entry->status = RouteStatus::Authorised;
                 $entry->detectedSignal = $signal;
 
@@ -401,6 +408,23 @@ class AuthorisationDetector
         }
 
         return $this->policyResolver->resolveForRoute($modelClass, $routeAction);
+    }
+
+    private function isPolicyInstanceBlind(string $modelClass, ?string $routeAction): bool
+    {
+        if ($routeAction === null) {
+            return false;
+        }
+
+        $policyClass = $this->policyResolver->findPolicyClass($modelClass);
+
+        if ($policyClass === null) {
+            return false;
+        }
+
+        $policyMethod = $this->policyResolver->inferPolicyMethod($routeAction);
+
+        return $this->policyResolver->isPolicyMethodInstanceBlind($policyClass, $policyMethod);
     }
 
     /** @param Node[] $ast */

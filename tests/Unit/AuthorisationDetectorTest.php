@@ -13,12 +13,14 @@ use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuth
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithProperFormRequest;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithThisAuthorize;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Models\Order;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Policies\InstanceBlindPolicy;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Policies\InstanceScopedPolicy;
 use Phoenix1331\LaravelAuthAudit\Tests\Support\RouteEntryFactory;
 
-function makeDetector(array $config = []): AuthorisationDetector
+function makeDetector(array $config = [], ?string $policyClass = null): AuthorisationDetector
 {
     $gate = Mockery::mock(Gate::class);
-    $gate->shouldReceive('getPolicyFor')->andReturn(null);
+    $gate->shouldReceive('getPolicyFor')->andReturn($policyClass);
 
     $policyResolver = new PolicyResolver($gate);
 
@@ -173,6 +175,34 @@ it('does not flag unscoped-nested-binding when entry is skipped', function () {
     $result = $detector->detect($entry);
 
     expect($result->status)->toBe(RouteStatus::Skipped)
+        ->and($result->antiPattern)->toBeNull();
+});
+
+it('flags instance-blind-policy when policy method has no model param', function () {
+    $detector = makeDetector(policyClass: InstanceBlindPolicy::class);
+    $entry = RouteEntryFactory::make(
+        uri: 'orders/{order}',
+        action: 'update',
+        boundModels: [Order::class],
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Unauthorised)
+        ->and($result->antiPattern)->toBe('instance-blind-policy');
+});
+
+it('does not flag instance-blind-policy when policy method references the model', function () {
+    $detector = makeDetector(policyClass: InstanceScopedPolicy::class);
+    $entry = RouteEntryFactory::make(
+        uri: 'orders/{order}',
+        action: 'update',
+        boundModels: [Order::class],
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
         ->and($result->antiPattern)->toBeNull();
 });
 

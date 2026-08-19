@@ -3,6 +3,11 @@
 namespace Phoenix1331\LaravelAuthAudit\Scanning;
 
 use Illuminate\Contracts\Auth\Access\Gate;
+use PhpParser\Node\Expr\Variable;
+use PhpParser\Node\Name;
+use PhpParser\Node\Stmt\ClassMethod;
+use PhpParser\NodeFinder;
+use PhpParser\ParserFactory;
 
 class PolicyResolver
 {
@@ -56,5 +61,89 @@ class PolicyResolver
         }
 
         return $policyClass.'@'.$policyMethod;
+    }
+
+    public function isPolicyMethodInstanceBlind(string $policyClass, string $methodName): bool
+    {
+        try {
+            $ref = new \ReflectionClass($policyClass);
+        } catch (\ReflectionException) {
+            return false;
+        }
+
+        $file = $ref->getFileName();
+
+        if ($file === false || ! file_exists($file)) {
+            return false;
+        }
+
+        $parser = (new ParserFactory)->createForNewestSupportedVersion();
+
+        try {
+            $ast = $parser->parse(file_get_contents($file));
+        } catch (\Throwable) {
+            return false;
+        }
+
+        if ($ast === null) {
+            return false;
+        }
+
+        $nodeFinder = new NodeFinder;
+        $methods = $nodeFinder->findInstanceOf($ast, ClassMethod::class);
+
+        foreach ($methods as $method) {
+            if ($method->name->toString() !== $methodName) {
+                continue;
+            }
+
+            // No model parameter at all — instance-blind
+            $modelParam = $this->findModelParam($method);
+
+            if ($modelParam === null) {
+                return true;
+            }
+
+            // Has a model param but never references it in the body — instance-blind
+            $paramName = $modelParam;
+            $usages = $nodeFinder->findInstanceOf($method->stmts ?? [], Variable::class);
+
+            foreach ($usages as $var) {
+                if ($var->name === $paramName) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private function findModelParam(ClassMethod $method): ?string
+    {
+        // Skip first param (the authenticated user by convention)
+        $params = array_slice($method->params, 1);
+
+        foreach ($params as $param) {
+            $type = $param->type;
+
+            if ($type === null) {
+                continue;
+            }
+
+            $typeName = $type instanceof Name ? $type->toString() : null;
+
+            if ($typeName === null) {
+                continue;
+            }
+
+            // Any non-primitive type hint in the second+ position is the model param
+            if (! in_array(strtolower($typeName), ['int', 'string', 'bool', 'float', 'array', 'mixed'], true)) {
+                return is_string($param->var->name) ? $param->var->name : null;
+            }
+        }
+
+        return null;
     }
 }

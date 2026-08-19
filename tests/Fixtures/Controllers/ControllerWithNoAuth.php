@@ -8,4 +8,9 @@ class ControllerWithNoAuth
     {
         // no authorisation check
     }
+
+    public function update($order): void
+    {
+        // no authorisation check
+    }
 }
