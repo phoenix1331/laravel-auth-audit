@@ -10,7 +10,7 @@
 
 [Broken Access Control](https://owasp.org/Top10/A01_2021-Broken_Access_Control/) has been the #1 vulnerability on the OWASP Top 10 for multiple release cycles. The most common form in Laravel is [IDOR - Insecure Direct Object Reference](https://owasp.org/www-community/attacks/Insecure_Direct_Object_Reference) - and it is trivially easy to introduce without realising it.
 
-A developer who adds `auth` middleware to a route has proved who the user is - not that they're allowed to see or edit that specific record. The gap between the two is where IDOR lives. A logged-in user walks `/users/1`, `/users/2`, `/users/3` in the address bar and the app resolves every one, because nothing ever checked whether that user is allowed to see each profile. Auth Audit is a Composer dev-dependency that statically scans your routes, controllers, Form Requests, and Policies to find exactly these gaps, reports them as a coverage percentage, and fails your CI build when coverage drops below a threshold you set.
+A developer who adds `auth` middleware to a route has proved who the user is - not that they are allowed to see or edit that specific record. The gap between the two is where IDOR lives. A logged-in user walks `/users/1`, `/users/2`, `/users/3` in the address bar and the app resolves every one, because nothing ever checked whether that user is allowed to see each profile. Auth Audit is a Composer dev-dependency that statically scans your routes, controllers, Form Requests, and Policies to find exactly these gaps, reports them as a coverage percentage, and fails your CI build when coverage drops below a threshold you set.
 
 <img width="838" height="444" alt="Laravel Auth Audit HTML Output" src="https://github.com/user-attachments/assets/ed788c79-f38e-4775-b5c7-8bb3da8e7ad7" />
 
@@ -43,15 +43,140 @@ The detector runs four tiers in confidence order, stopping at the first signal i
 `can:` middleware on the route definition counts as an explicit authorisation signal. Custom middleware strings can be registered in `custom_signals` config to extend this tier.
 
 **Tier 2 - Controller body (AST)**
-The controller file is parsed as an AST using `nikic/php-parser` - the same library PHPStan and Rector use internally. The detector looks for `$this->authorize()`, `Gate::authorize()`, `Gate::allows()`, `Gate::check()`, `Gate::any()`, and `Gate::none()` inside the action method. A Form Request type-hint on the method signature is also inspected - if its `authorize()` method contains only `return true;`, it is flagged as the `bare-true-form-request` anti-pattern rather than counted as a signal.
+The controller file is parsed as an AST using `nikic/php-parser` - the same library PHPStan and Rector use internally. The detector looks for:
+
+- `$this->authorize()` or `Gate::authorize()`
+- `Gate::allows()`, `Gate::check()`, `Gate::any()`, `Gate::none()`, `Gate::inspect()`
+- `abort_unless($user->can(...))` and `abort_if(!$user->can(...))`
+- `$this->authorizeResource()` in the constructor
+- Relationship-scoped retrieval: `$request->user()->orders()->findOrFail($id)`
+
+A Form Request type-hint on the method signature is also inspected - if its `authorize()` method contains only `return true;`, it is flagged as the `bare-true-form-request` anti-pattern. If its `authorize()` references `$this->route()`, the signal is labelled `[instance-scoped]`.
 
 **Tier 3 - Policy**
-For each Eloquent model bound to the route via route-model binding, the detector checks whether a Policy is registered for that model and whether the policy has a method matching the implied CRUD action (`store` maps to `create`, `destroy` maps to `delete`, etc.).
+For each Eloquent model bound to the route via route-model binding, the detector checks whether a Policy is registered for that model and whether the policy has a method matching the implied CRUD action. v2 also parses the policy method body and flags `instance-blind-policy` when the method never references the model parameter.
 
 **Tier 4 - Custom signals**
-An escape hatch for teams whose authorisation lives in a service layer, a custom middleware, or another pattern the static detector cannot infer. Register the class method or middleware name in `custom_signals` config.
+An escape hatch for teams whose authorisation lives in a service layer or a custom middleware. Register the class method or middleware name in `custom_signals` config.
 
-**Known limitation:** authorisation that lives inside a called service method is not visible to the static AST pass. If `AuthService::authorizeView()` internally calls `Gate::authorize()`, the detector sees only that `AuthService::authorizeView()` was called - it does not follow the call graph into the service. This is an honest known gap, not a bug; the roadmap section below describes the runtime detection tier that addresses it.
+**Known limitation:** authorisation that lives inside a called service method is not visible to the static AST pass. If `AuthService::authorizeView()` internally calls `Gate::authorize()`, the detector sees only that the method was called - it does not follow the call graph. Register the method in `custom_signals` to handle this pattern explicitly.
+
+---
+
+## Anti-patterns detected
+
+v2 detects five classes of broken authorisation that look correct at a glance but provide no real protection:
+
+### `unscoped-nested-binding`
+
+A route with two or more route-model-bound parameters where neither `->scopeBindings()` is applied nor the child follows Laravel's naming convention (`{team}/{team_order}`). An auth check on the parent does not prove the child belongs to the parent.
+
+```php
+// before - flagged
+Route::get('/teams/{team}/orders/{order}', [OrderController::class, 'show']);
+// $this->authorize() on $team proves the user owns the team
+// but nothing proves the $order belongs to that team
+
+// after - safe
+Route::get('/teams/{team}/orders/{order}', [OrderController::class, 'show'])
+    ->scopeBindings();
+```
+
+### `class-level-check-on-instance-route`
+
+`authorize()` or `Gate::*` called with `Model::class` instead of the bound instance. The policy receives the class string, not the record, so it cannot verify ownership.
+
+```php
+// before - flagged
+$this->authorize('update', Order::class);
+
+// after - safe
+$this->authorize('update', $order); // pass the bound instance
+```
+
+### `instance-blind-policy`
+
+A policy method that either has no model parameter or never references it in its body. The policy runs but cannot enforce per-record ownership.
+
+```php
+// before - flagged
+public function update(User $user): bool
+{
+    return $user->isAdmin(); // checks role, not which order is being accessed
+}
+
+// after - safe
+public function update(User $user, Order $order): bool
+{
+    return $order->user_id === $user->id;
+}
+```
+
+### `unbound-identifier`
+
+A route with a raw scalar param (`{id}` without type-hinting to a model) where the controller calls `find()`, `findOrFail()`, `firstWhere()`, or `where('id', ...)` without first scoping the query to the authenticated user.
+
+```php
+// before - flagged
+public function show(Request $request, int $id): Response
+{
+    $order = Order::findOrFail($id); // any user can access any order
+}
+
+// after - safe (relationship-scoped retrieval)
+public function show(Request $request, int $id): Response
+{
+    $order = $request->user()->orders()->findOrFail($id);
+}
+```
+
+### `discarded-gate-result`
+
+`Gate::allows()`, `Gate::check()`, or `Gate::any()` called as a bare statement whose return value is never used in a conditional, `abort_unless`, ternary, or return.
+
+```php
+// before - flagged
+Gate::allows('update', $order); // result discarded, no effect
+
+// after - safe
+abort_unless(Gate::allows('update', $order), 403);
+// or
+Gate::authorize('update', $order);
+```
+
+---
+
+## Baseline adoption
+
+On a large existing codebase, fixing every violation before shipping v2 detection is not always practical. The baseline system lets you record the current state and enforce "no new violations" in CI without touching existing ones.
+
+**Step 1 - Generate the baseline:**
+
+```bash
+php artisan auth-audit:run --generate-baseline
+```
+
+Writes `auth-audit-baseline.json` at the project root (path configurable via `baseline_path` in `config/auth-audit.php`).
+
+**Step 2 - CI with the baseline:**
+
+```bash
+php artisan auth-audit:run --compare=auth-audit-baseline.json --min=80
+```
+
+Routes in the baseline appear as `baselined` and are excluded from the coverage percentage. New routes are not grandfathered in - they must be authorised or they fail the build.
+
+**Step 3 - Shrink the baseline over time:**
+
+Fix a violation, then regenerate:
+
+```bash
+php artisan auth-audit:run --generate-baseline
+```
+
+When the baseline is empty, remove `--compare` and enforce full coverage.
+
+If routes in the baseline no longer exist, the command reports stale entries and reminds you to regenerate.
 
 ---
 
@@ -70,24 +195,27 @@ php artisan auth-audit:run --json
 # write a self-contained HTML report
 php artisan auth-audit:run --html=storage/auth-audit/report.html
 
-# compare against a previous JSON report for delta indicators
-php artisan auth-audit:run --html=report.html --compare=previous-report.json
+# generate a baseline file
+php artisan auth-audit:run --generate-baseline
+
+# compare against a baseline (suppress known violations, fail on new ones)
+php artisan auth-audit:run --compare=auth-audit-baseline.json --min=90
 ```
 
 Sample console output:
 
 ```
-  Route                          Verb   Auth Check           Status
-  ---------------------------------------------------------------
-  /orders/{order}                PUT    $this->authorize()   ✓ authorised
-  /orders/{order}                DELETE -                    ✗ unauthorised
-  /reports/export                GET    can:view-reports     ✓ authorised
-  /webhooks/stripe               POST   Signature verified   - skipped
-  ---------------------------------------------------------------
+  Route                          Verb   Auth Check                        Status
+  -------------------------------------------------------------------------------
+  /orders/{order}                PUT    $this->authorize()                ✓ authorised
+  /teams/{team}/orders/{order}   GET    unscoped-nested-binding           ✗ unauthorised
+  /invoices/{id}                 GET    unbound-identifier                ✗ unauthorised
+  /reports/export                GET    can:view-reports                  ✓ authorised
+  /webhooks/stripe               POST   Signature verified                - skipped
+  /users/{id}                    GET    unbound-identifier                ~ baselined
+  -------------------------------------------------------------------------------
   Coverage: 82% (211/257 routes)
-  18 unauthorised . 28 excluded . 13 skipped (+3 vs baseline)
-
-  x Coverage 82% is below the configured minimum of 90%.
+  18 unauthorised · 28 excluded · 13 skipped · 4 baselined
 ```
 
 ---
@@ -111,6 +239,7 @@ This creates `config/auth-audit.php`. The package works without publishing - def
 | `scan_paths` | array | `app/Http/Controllers` | Directories walked for controller discovery |
 | `custom_signals` | array | `[]` | Additional class methods or middleware that count as authorised |
 | `flag_bare_true_form_requests` | bool | `true` | Flag `authorize() { return true; }` as a named anti-pattern |
+| `baseline_path` | string | `auth-audit-baseline.json` | Default path for `--generate-baseline` and `--compare` |
 | `html.output_path` | string | `storage/auth-audit/report.html` | Default path for `--html` output |
 | `html.title` | string | `Auth Audit Report` | Report header text |
 | `require_exclusion_reasons` | bool | `true` | Every `exclude` entry must carry a documented reason string |
@@ -178,17 +307,11 @@ Without this entry the route appears red (false positive). With it, it appears g
   run: php artisan auth-audit:run --min=90
 ```
 
-To save the JSON as a baseline for delta comparison on the next run:
+With baseline (no regressions allowed, existing violations suppressed):
 
 ```yaml
 - name: run auth audit
-  run: php artisan auth-audit:run --min=90 --json > auth-audit-baseline.json
-
-- name: upload baseline
-  uses: actions/upload-artifact@v4
-  with:
-    name: auth-audit-baseline
-    path: auth-audit-baseline.json
+  run: php artisan auth-audit:run --compare=auth-audit-baseline.json --min=90
 ```
 
 ---
@@ -211,12 +334,14 @@ References:
 - OWASP A01:2021 Broken Access Control - owasp.org/Top10/2021/A01_2021-Broken_Access_Control
 - OWASP IDOR attack pattern - owasp.org/www-community/attacks/Insecure_Direct_Object_Reference
 
+See [UPGRADING.md](UPGRADING.md) if you are migrating from v1.
+
 ---
 
 ## Roadmap
 
-- **v2:** runtime detection tier - an opt-in middleware for staging environments that logs actual Gate and Policy invocations, reconciled against the static report to catch service-layer authorisation the AST pass cannot see
-- **v2/v3:** optional in-app dashboard (Telescope/Pulse-style) as a new consumer of the existing `AuditReport` data model - historical trend charts across commits, no scanning logic duplicated
+- **v3:** runtime detection tier - an opt-in middleware for staging environments that logs actual Gate and Policy invocations, reconciled against the static report to catch service-layer authorisation the AST pass cannot see
+- **v3/v4:** optional in-app dashboard (Telescope/Pulse-style) as a new consumer of the existing `AuditReport` data model - historical trend charts across commits, no scanning logic duplicated
 - **stretch:** a GitHub Action wrapper (`uses: phoenix1331/laravel-auth-audit-action@v1`) for zero-config CI adoption
 
 ---
