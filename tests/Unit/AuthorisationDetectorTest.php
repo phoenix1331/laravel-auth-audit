@@ -4,11 +4,14 @@ use Illuminate\Contracts\Auth\Access\Gate;
 use Phoenix1331\LaravelAuthAudit\Data\RouteStatus;
 use Phoenix1331\LaravelAuthAudit\Scanning\AuthorisationDetector;
 use Phoenix1331\LaravelAuthAudit\Scanning\PolicyResolver;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithAbortUnlessCan;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithAuthorizeResource;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithBareFormRequest;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithClassLevelCheck;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAllows;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAuthorize;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateClassLevelCheck;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateInspect;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuth;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithProperFormRequest;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithRelationshipScope;
@@ -353,4 +356,56 @@ it('does not flag unscoped-nested-binding when only one bound model', function (
 
     expect($result->status)->toBe(RouteStatus::Authorised)
         ->and($result->antiPattern)->toBeNull();
+});
+
+it('counts authorizeResource() in constructor as authorised', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithAuthorizeResource::class,
+        action: 'update',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->detectedSignal)->toBe('$this->authorizeResource()');
+});
+
+it('counts abort_unless($user->can()) as authorised', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithAbortUnlessCan::class,
+        action: 'update',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->detectedSignal)->toContain('abort_unless');
+});
+
+it('counts abort_if(!$user->can()) as authorised', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithAbortUnlessCan::class,
+        action: 'destroy',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->detectedSignal)->toContain('abort_if');
+});
+
+it('counts Gate::inspect() as authorised', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithGateInspect::class,
+        action: 'update',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->detectedSignal)->toBe('Gate::inspect()');
 });

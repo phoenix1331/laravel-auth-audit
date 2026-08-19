@@ -2,10 +2,13 @@
 
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithAbortUnlessCan;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithAuthorizeResource;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithClassAttribute;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithClassLevelCheck;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithExpiredAttribute;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAuthorize;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateInspect;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNestedBinding;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuth;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuthAndModel;
@@ -155,6 +158,27 @@ it('flags unbound-identifier on a route with a raw scalar param and unscoped fin
 
 it('counts relationship-scoped retrieval as authorised and does not flag unbound-identifier', function () {
     Route::get('/orders/{id}', [ControllerWithRelationshipScope::class, 'show']);
+
+    $this->artisan('auth-audit:run', ['--min' => 0])
+        ->expectsOutputToContain('authorised');
+});
+
+it('counts authorizeResource() in constructor as authorised', function () {
+    Route::put('/orders/{order}', [ControllerWithAuthorizeResource::class, 'update']);
+
+    $this->artisan('auth-audit:run', ['--min' => 0])
+        ->expectsOutputToContain('authorised');
+});
+
+it('counts abort_unless($user->can()) as authorised', function () {
+    Route::put('/orders/{order}', [ControllerWithAbortUnlessCan::class, 'update']);
+
+    $this->artisan('auth-audit:run', ['--min' => 0])
+        ->expectsOutputToContain('authorised');
+});
+
+it('counts Gate::inspect() as authorised', function () {
+    Route::put('/orders/{order}', [ControllerWithGateInspect::class, 'update']);
 
     $this->artisan('auth-audit:run', ['--min' => 0])
         ->expectsOutputToContain('authorised');

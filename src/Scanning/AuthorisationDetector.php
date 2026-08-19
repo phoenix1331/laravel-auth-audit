@@ -83,6 +83,13 @@ class AuthorisationDetector
                 $ast = $this->parseFile($controllerFile);
 
                 if ($ast !== null) {
+                    if ($signal = $this->detectAuthorizeResource($ast)) {
+                        $entry->status = RouteStatus::Authorised;
+                        $entry->detectedSignal = $signal;
+
+                        return $entry;
+                    }
+
                     if ($entry->boundModels !== [] && $this->detectClassLevelCheckOnInstanceRoute($ast, $entry->action)) {
                         $entry->status = RouteStatus::Unauthorised;
                         $entry->antiPattern = 'class-level-check-on-instance-route';
@@ -218,7 +225,7 @@ class AuthorisationDetector
                 continue;
             }
 
-            if (! in_array($call->name->name, ['authorize', 'allows', 'check', 'any', 'none'], true)) {
+            if (! in_array($call->name->name, ['authorize', 'allows', 'check', 'any', 'none', 'inspect'], true)) {
                 continue;
             }
 
@@ -265,6 +272,10 @@ class AuthorisationDetector
             return $signal;
         }
 
+        if ($signal = $this->detectAbortUnlessCanCall($method)) {
+            return $signal;
+        }
+
         return null;
     }
 
@@ -301,7 +312,7 @@ class AuthorisationDetector
             $class = $call->class->toString();
             $methodName = $call->name->name;
 
-            if ($class === 'Gate' && in_array($methodName, ['authorize', 'allows', 'check', 'any', 'none'], true)) {
+            if ($class === 'Gate' && in_array($methodName, ['authorize', 'allows', 'check', 'any', 'none', 'inspect'], true)) {
                 return 'Gate::'.$methodName.'()';
             }
         }
@@ -328,6 +339,66 @@ class AuthorisationDetector
         }
 
         return null;
+    }
+
+    /** @param Node[] $ast */
+    private function detectAuthorizeResource(array $ast): ?string
+    {
+        $constructor = $this->findMethod($ast, '__construct');
+
+        if ($constructor === null) {
+            return null;
+        }
+
+        foreach ($this->nodeFinder->findInstanceOf($constructor, MethodCall::class) as $call) {
+            if ($call->name instanceof Identifier && $call->name->name === 'authorizeResource') {
+                return '$this->authorizeResource()';
+            }
+        }
+
+        return null;
+    }
+
+    private function detectAbortUnlessCanCall(ClassMethod $method): ?string
+    {
+        foreach ($this->nodeFinder->findInstanceOf($method, Node\Expr\FuncCall::class) as $call) {
+            if (! $call->name instanceof Name) {
+                continue;
+            }
+
+            $funcName = $call->name->toString();
+
+            if (! in_array($funcName, ['abort_unless', 'abort_if'], true)) {
+                continue;
+            }
+
+            if ($call->args === []) {
+                continue;
+            }
+
+            $condition = $call->args[0]->value;
+
+            if ($this->conditionContainsCanCall($condition)) {
+                return $funcName.'($user->can(...))';
+            }
+        }
+
+        return null;
+    }
+
+    private function conditionContainsCanCall(Node $node): bool
+    {
+        // $user->can(...) or auth()->user()->can(...)
+        if ($node instanceof MethodCall && $node->name instanceof Identifier && $node->name->name === 'can') {
+            return true;
+        }
+
+        // !$user->can(...) — BooleanNot wrapping a can() call
+        if ($node instanceof Node\Expr\BooleanNot) {
+            return $this->conditionContainsCanCall($node->expr);
+        }
+
+        return false;
     }
 
     private function isRelationshipScopedChain(Node $node): bool
