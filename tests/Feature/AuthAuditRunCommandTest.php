@@ -6,6 +6,7 @@ use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithAbortU
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithAuthorizeResource;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithClassAttribute;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithClassLevelCheck;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithDiscardedGateResult;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithExpiredAttribute;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAuthorize;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateInspect;
@@ -182,4 +183,11 @@ it('counts Gate::inspect() as authorised', function () {
 
     $this->artisan('auth-audit:run', ['--min' => 0])
         ->expectsOutputToContain('authorised');
+});
+
+it('flags discarded-gate-result anti-pattern in output', function () {
+    Route::put('/orders/{order}', [ControllerWithDiscardedGateResult::class, 'update']);
+
+    $this->artisan('auth-audit:run', ['--min' => 0])
+        ->expectsOutputToContain('discarded-gate-result');
 });

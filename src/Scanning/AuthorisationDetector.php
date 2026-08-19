@@ -90,6 +90,15 @@ class AuthorisationDetector
                         return $entry;
                     }
 
+                    $method = $this->findMethod($ast, $entry->action);
+
+                    if ($method !== null && $this->detectDiscardedGateResult($method)) {
+                        $entry->status = RouteStatus::Unauthorised;
+                        $entry->antiPattern = 'discarded-gate-result';
+
+                        return $entry;
+                    }
+
                     if ($entry->boundModels !== [] && $this->detectClassLevelCheckOnInstanceRoute($ast, $entry->action)) {
                         $entry->status = RouteStatus::Unauthorised;
                         $entry->antiPattern = 'class-level-check-on-instance-route';
@@ -339,6 +348,38 @@ class AuthorisationDetector
         }
 
         return null;
+    }
+
+    private function detectDiscardedGateResult(ClassMethod $method): bool
+    {
+        $discardableMethods = ['allows', 'check', 'any', 'none'];
+
+        // A discarded call is a StaticCall that is the direct expr of an Expression statement.
+        // We find all Expression stmts in the method body and check if any wrap a bare Gate call.
+        $stmts = $method->stmts ?? [];
+        $exprStmts = $this->nodeFinder->findInstanceOf($stmts, Node\Stmt\Expression::class);
+
+        foreach ($exprStmts as $exprStmt) {
+            $expr = $exprStmt->expr;
+
+            if (! $expr instanceof StaticCall) {
+                continue;
+            }
+
+            if (! $expr->class instanceof Name || $expr->class->toString() !== 'Gate') {
+                continue;
+            }
+
+            if (! $expr->name instanceof Identifier) {
+                continue;
+            }
+
+            if (in_array($expr->name->name, $discardableMethods, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @param Node[] $ast */

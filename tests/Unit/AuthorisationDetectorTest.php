@@ -8,6 +8,7 @@ use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithAbortU
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithAuthorizeResource;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithBareFormRequest;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithClassLevelCheck;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithDiscardedGateResult;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAllows;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateAuthorize;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateClassLevelCheck;
@@ -18,6 +19,7 @@ use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithRelati
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithThisAuthorize;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithUnscopedFind;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithUnscopedRequestFind;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithUsedGateResult;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Models\Order;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Policies\InstanceBlindPolicy;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Policies\InstanceScopedPolicy;
@@ -408,4 +410,43 @@ it('counts Gate::inspect() as authorised', function () {
 
     expect($result->status)->toBe(RouteStatus::Authorised)
         ->and($result->detectedSignal)->toBe('Gate::inspect()');
+});
+
+it('flags discarded-gate-result when Gate::allows() return value is not used', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithDiscardedGateResult::class,
+        action: 'update',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Unauthorised)
+        ->and($result->antiPattern)->toBe('discarded-gate-result');
+});
+
+it('does not flag discarded-gate-result when Gate::allows() is used in a conditional', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithUsedGateResult::class,
+        action: 'update',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->antiPattern)->toBeNull();
+});
+
+it('does not flag discarded-gate-result when Gate::allows() is used in abort_unless', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        controller: ControllerWithUsedGateResult::class,
+        action: 'destroy',
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Authorised)
+        ->and($result->antiPattern)->toBeNull();
 });
