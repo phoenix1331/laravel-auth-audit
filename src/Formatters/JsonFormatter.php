@@ -21,6 +21,8 @@ class JsonFormatter
             'unauthorised_count' => $report->unauthorisedCount,
             'skipped_count' => $report->skippedCount,
             'excluded_count' => $report->excludedCount,
+            'baselined_count' => $report->baselinedCount,
+            'stale_baseline_count' => $report->staleBaselineCount,
             'routes' => array_map($this->serializeRoute(...), $report->routes),
         ];
     }

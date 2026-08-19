@@ -87,10 +87,15 @@ class AuthAuditRunCommand extends Command
     /** @param RouteEntry[] $entries */
     private function buildReport(array $entries, ?array $baseline): AuditReport
     {
+        if ($baseline !== null) {
+            $entries = $this->applyBaseline($entries, $baseline);
+        }
+
         $authorised = 0;
         $unauthorised = 0;
         $skipped = 0;
         $excluded = 0;
+        $baselined = 0;
 
         foreach ($entries as $entry) {
             match ($entry->status) {
@@ -98,8 +103,11 @@ class AuthAuditRunCommand extends Command
                 RouteStatus::Unauthorised => $unauthorised++,
                 RouteStatus::Skipped => $skipped++,
                 RouteStatus::Partial => $authorised++,
+                RouteStatus::Baselined => $baselined++,
             };
         }
+
+        $stale = $baseline !== null ? $this->countStaleEntries($entries, $baseline) : 0;
 
         $scoreable = $authorised + $unauthorised;
         $coverage = $scoreable > 0 ? round(($authorised / $scoreable) * 100, 2) : 100.0;
@@ -112,9 +120,48 @@ class AuthAuditRunCommand extends Command
             skippedCount: $skipped,
             excludedCount: $excluded,
             coveragePercentage: $coverage,
-            previousSkippedCount: $baseline !== null ? ($baseline['skipped_count'] ?? null) : null,
-            previousCoveragePercentage: $baseline !== null ? ($baseline['coverage_percentage'] ?? null) : null,
+            baselinedCount: $baselined,
+            staleBaselineCount: $stale,
+            previousSkippedCount: null,
+            previousCoveragePercentage: null,
         );
+    }
+
+    /** @param RouteEntry[] $entries */
+    private function applyBaseline(array $entries, array $baseline): array
+    {
+        foreach ($entries as $entry) {
+            if ($entry->status !== RouteStatus::Unauthorised) {
+                continue;
+            }
+
+            $key = BaselineWriter::routeSignature($entry);
+
+            if (array_key_exists($key, $baseline)) {
+                $entry->status = RouteStatus::Baselined;
+            }
+        }
+
+        return $entries;
+    }
+
+    /** @param RouteEntry[] $entries */
+    private function countStaleEntries(array $entries, array $baseline): int
+    {
+        $activeSignatures = array_map(
+            fn (RouteEntry $e) => BaselineWriter::routeSignature($e),
+            $entries,
+        );
+
+        $stale = 0;
+
+        foreach (array_keys($baseline) as $key) {
+            if (! in_array($key, $activeSignatures, true)) {
+                $stale++;
+            }
+        }
+
+        return $stale;
     }
 
     private function writeHtmlReport(AuditReport $report, array $config, string $path): void

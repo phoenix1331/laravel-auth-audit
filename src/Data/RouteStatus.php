@@ -8,4 +8,5 @@ enum RouteStatus: string
     case Unauthorised = 'unauthorised';
     case Partial = 'partial';
     case Skipped = 'skipped';
+    case Baselined = 'baselined';
 }

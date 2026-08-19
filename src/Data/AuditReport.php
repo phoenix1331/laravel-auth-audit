@@ -13,6 +13,8 @@ class AuditReport
         public readonly int $skippedCount,
         public readonly int $excludedCount,
         public readonly float $coveragePercentage,
+        public readonly int $baselinedCount = 0,
+        public readonly int $staleBaselineCount = 0,
         public readonly ?int $previousSkippedCount = null,
         public readonly ?float $previousCoveragePercentage = null,
     ) {}

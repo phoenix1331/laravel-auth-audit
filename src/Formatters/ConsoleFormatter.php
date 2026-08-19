@@ -33,24 +33,22 @@ class ConsoleFormatter
     private function renderSummary(AuditReport $report, OutputStyle $output): void
     {
         $coverage = number_format($report->coveragePercentage, 0);
-        $delta = $report->coverageDelta();
-        $skippedDelta = $report->skippedDelta();
-
-        $deltaStr = '';
-        if ($delta !== null) {
-            $sign = $delta >= 0 ? '+' : '';
-            $deltaStr = " ({$sign}".number_format($delta, 1).'%)';
-        }
-
-        $skippedDeltaStr = '';
-        if ($skippedDelta !== null && $skippedDelta !== 0) {
-            $sign = $skippedDelta > 0 ? '+' : '';
-            $skippedDeltaStr = " ({$sign}{$skippedDelta} vs baseline)";
-        }
 
         $output->writeln('');
-        $output->writeln("  Coverage: <comment>{$coverage}%{$deltaStr}</comment> ({$report->authorisedCount}/{$report->totalRoutes} routes)");
-        $output->writeln("  {$report->unauthorisedCount} unauthorised · {$report->excludedCount} excluded · {$report->skippedCount} skipped{$skippedDeltaStr}");
+        $output->writeln("  Coverage: <comment>{$coverage}%</comment> ({$report->authorisedCount}/{$report->totalRoutes} routes)");
+
+        $parts = ["{$report->unauthorisedCount} unauthorised", "{$report->excludedCount} excluded", "{$report->skippedCount} skipped"];
+
+        if ($report->baselinedCount > 0) {
+            $parts[] = "{$report->baselinedCount} baselined";
+        }
+
+        $output->writeln('  '.implode(' · ', $parts));
+
+        if ($report->staleBaselineCount > 0) {
+            $output->writeln('');
+            $output->writeln("  <comment>{$report->staleBaselineCount} stale baseline entries detected. Run --generate-baseline to update.</comment>");
+        }
     }
 
     public function renderThresholdFailure(AuditReport $report, int $min, OutputStyle $output): void
@@ -85,6 +83,7 @@ class ConsoleFormatter
             RouteStatus::Unauthorised => '<fg=red>✗ unauthorised</>',
             RouteStatus::Partial => '<comment>~ partial</comment>',
             RouteStatus::Skipped => '<fg=gray>- skipped</>',
+            RouteStatus::Baselined => '<fg=gray>~ baselined</>',
         };
     }
 }

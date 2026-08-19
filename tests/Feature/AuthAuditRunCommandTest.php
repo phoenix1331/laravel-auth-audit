@@ -238,3 +238,55 @@ it('exits successfully when --generate-baseline is passed regardless of coverage
 
     unlink($path);
 });
+
+it('marks baselined violations as baselined and exits successfully', function () {
+    $path = sys_get_temp_dir().'/auth-audit-baseline-'.uniqid().'.json';
+    Route::get('/users/{id}', [ControllerWithNoAuth::class, 'show']);
+
+    // generate baseline with the violation
+    $this->artisan('auth-audit:run', ['--generate-baseline' => true, '--compare' => $path]);
+
+    // re-run with the same violation — should now be baselined, exit 0 even at --min 100
+    $this->artisan('auth-audit:run', ['--compare' => $path, '--min' => 100])
+        ->assertSuccessful()
+        ->expectsOutputToContain('baselined');
+
+    unlink($path);
+});
+
+it('fails CI when a new violation is added that is not in the baseline', function () {
+    $path = sys_get_temp_dir().'/auth-audit-baseline-'.uniqid().'.json';
+
+    // baseline with one route
+    Route::get('/users/{id}', [ControllerWithNoAuth::class, 'show']);
+    $this->artisan('auth-audit:run', ['--generate-baseline' => true, '--compare' => $path]);
+
+    // add a second unprotected route not in the baseline
+    Route::get('/posts/{id}', [ControllerWithNoAuth::class, 'show']);
+    $this->artisan('auth-audit:run', ['--compare' => $path, '--min' => 100])
+        ->assertFailed();
+
+    unlink($path);
+});
+
+it('reports stale baseline entries when baseline contains a route no longer present', function () {
+    $path = sys_get_temp_dir().'/auth-audit-baseline-'.uniqid().'.json';
+
+    // write a baseline containing a signature that will never match a registered route
+    file_put_contents($path, json_encode([
+        'GET::nonexistent/route::App\\Http\\Controllers\\GoneController::show' => [
+            'uri' => 'nonexistent/route',
+            'method' => 'GET',
+            'controller' => 'App\\Http\\Controllers\\GoneController',
+            'action' => 'show',
+            'anti_pattern' => null,
+        ],
+    ]));
+
+    Route::get('/orders/{order}', [ControllerWithThisAuthorize::class, 'update']);
+
+    $this->artisan('auth-audit:run', ['--compare' => $path, '--min' => 0])
+        ->expectsOutputToContain('stale baseline entries');
+
+    unlink($path);
+});
