@@ -316,7 +316,7 @@ With baseline (no regressions allowed, existing violations suppressed):
 
 ---
 
-## Why we built this
+## Why I built this
 
 Broken access control has been the number 1 issue on the OWASP Top 10 for multiple release cycles. The most recognisable instance in Laravel is IDOR - Insecure Direct Object Reference. A developer adds a route, wires up a controller, puts it behind `auth` middleware, and ships it. Nothing enforces that they also checked whether the authenticated user is allowed to access that specific record.
 
