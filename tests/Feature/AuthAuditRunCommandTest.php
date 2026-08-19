@@ -10,6 +10,7 @@ use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNested
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuth;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuthAndModel;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithThisAuthorize;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithUnscopedFind;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Models\Order;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Policies\InstanceBlindPolicy;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Policies\InstanceScopedPolicy;
@@ -142,4 +143,11 @@ it('does not flag instance-blind-policy when policy method references the model'
 
     $this->artisan('auth-audit:run', ['--min' => 0])
         ->expectsOutputToContain('authorised');
+});
+
+it('flags unbound-identifier on a route with a raw scalar param and unscoped findOrFail', function () {
+    Route::get('/users/{id}', [ControllerWithUnscopedFind::class, 'show']);
+
+    $this->artisan('auth-audit:run', ['--min' => 0])
+        ->expectsOutputToContain('unbound-identifier');
 });

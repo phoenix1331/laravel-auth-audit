@@ -12,6 +12,8 @@ use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithGateCl
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithNoAuth;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithProperFormRequest;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithThisAuthorize;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithUnscopedFind;
+use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Controllers\ControllerWithUnscopedRequestFind;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Models\Order;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Policies\InstanceBlindPolicy;
 use Phoenix1331\LaravelAuthAudit\Tests\Fixtures\Policies\InstanceScopedPolicy;
@@ -147,6 +149,50 @@ it('does not flag bare-true form request when config is disabled', function () {
     $result = $detector->detect($entry);
 
     expect($result->antiPattern)->toBeNull();
+});
+
+it('flags unbound-identifier when controller uses findOrFail with a raw scalar param', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        uri: 'users/{id}',
+        controller: ControllerWithUnscopedFind::class,
+        action: 'show',
+        rawScalarParams: ['id'],
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Unauthorised)
+        ->and($result->antiPattern)->toBe('unbound-identifier');
+});
+
+it('flags unbound-identifier when controller uses find with $request->id', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        uri: 'users/{id}',
+        controller: ControllerWithUnscopedRequestFind::class,
+        action: 'show',
+        rawScalarParams: ['id'],
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->status)->toBe(RouteStatus::Unauthorised)
+        ->and($result->antiPattern)->toBe('unbound-identifier');
+});
+
+it('does not flag unbound-identifier when route has no raw scalar params', function () {
+    $detector = makeDetector();
+    $entry = RouteEntryFactory::make(
+        uri: 'users/{id}',
+        controller: ControllerWithUnscopedFind::class,
+        action: 'show',
+        rawScalarParams: [],
+    );
+
+    $result = $detector->detect($entry);
+
+    expect($result->antiPattern)->not->toBe('unbound-identifier');
 });
 
 it('flags unscoped-nested-binding even when a check exists', function () {

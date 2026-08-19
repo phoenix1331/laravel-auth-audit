@@ -44,6 +44,19 @@ class AuthorisationDetector
             $entry->antiPattern = 'unscoped-nested-binding';
         }
 
+        if ($entry->antiPattern === null && $entry->rawScalarParams !== [] && $entry->controller !== null && $entry->action !== null) {
+            $controllerFile = $this->resolveControllerFile($entry->controller);
+
+            if ($controllerFile !== null && file_exists($controllerFile)) {
+                $ast = $this->parseFile($controllerFile);
+
+                if ($ast !== null && $this->detectUnscopedRetrieval($ast, $entry->action, $entry->rawScalarParams)) {
+                    $entry->status = RouteStatus::Unauthorised;
+                    $entry->antiPattern = 'unbound-identifier';
+                }
+            }
+        }
+
         return $entry;
     }
 
@@ -408,6 +421,74 @@ class AuthorisationDetector
         }
 
         return $this->policyResolver->resolveForRoute($modelClass, $routeAction);
+    }
+
+    /**
+     * @param  Node[]  $ast
+     * @param  string[]  $rawScalarParams
+     */
+    private function detectUnscopedRetrieval(array $ast, string $methodName, array $rawScalarParams): bool
+    {
+        $method = $this->findMethod($ast, $methodName);
+
+        if ($method === null) {
+            return false;
+        }
+
+        $unscopedMethods = ['find', 'findOrFail', 'firstWhere', 'where'];
+
+        foreach ($this->nodeFinder->findInstanceOf($method, StaticCall::class) as $call) {
+            if (! $call->name instanceof Identifier) {
+                continue;
+            }
+
+            if (! in_array($call->name->name, $unscopedMethods, true)) {
+                continue;
+            }
+
+            if ($call->args === []) {
+                continue;
+            }
+
+            $firstArg = $call->args[0]->value;
+
+            if ($this->argTracesToRawParam($firstArg, $rawScalarParams)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param string[] $rawScalarParams */
+    private function argTracesToRawParam(Node $arg, array $rawScalarParams): bool
+    {
+        // Direct variable: find($id)
+        if ($arg instanceof Node\Expr\Variable && is_string($arg->name)) {
+            return in_array($arg->name, $rawScalarParams, true);
+        }
+
+        // Property access on request: find($request->id)
+        if ($arg instanceof Node\Expr\PropertyFetch) {
+            if ($arg->var instanceof Node\Expr\Variable && $arg->var->name === 'request') {
+                return $arg->name instanceof Identifier
+                    && in_array($arg->name->name, $rawScalarParams, true);
+            }
+        }
+
+        // Method call on request: find($request->input('id')) or find($request->get('id'))
+        if ($arg instanceof MethodCall) {
+            if ($arg->var instanceof Node\Expr\Variable && $arg->var->name === 'request') {
+                if (isset($arg->args[0])) {
+                    $innerArg = $arg->args[0]->value;
+
+                    return $innerArg instanceof Node\Scalar\String_
+                        && in_array($innerArg->value, $rawScalarParams, true);
+                }
+            }
+        }
+
+        return false;
     }
 
     private function isPolicyInstanceBlind(string $modelClass, ?string $routeAction): bool
