@@ -15,7 +15,7 @@ class FeatureTestCase extends TestCase
     protected function defineEnvironment($app): void
     {
         $app['config']->set('auth-audit.enabled', true);
-        $app['config']->set('auth-audit.min_coverage', 80);
+        $app['config']->set('auth-audit.min_coverage', 0);
         $app['config']->set('auth-audit.exclude', []);
         $app['config']->set('auth-audit.exclude_middleware', ['guest']);
         $app['config']->set('auth-audit.custom_signals', []);

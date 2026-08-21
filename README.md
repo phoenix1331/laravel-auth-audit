@@ -3,7 +3,7 @@
 [![Packagist Version](https://img.shields.io/packagist/v/phoenix1331/laravel-auth-audit)](https://packagist.org/packages/phoenix1331/laravel-auth-audit)
 [![PHP](https://img.shields.io/badge/php-8.2%2B-blue)](https://www.php.net)
 [![Laravel](https://img.shields.io/badge/laravel-10%20%7C%2011%20%7C%2012%20%7C%2013-red)](https://laravel.com)
-[![Build](https://img.shields.io/github/actions/workflow/status/phoenix1331/laravel-auth-audit/tests.yml?branch=main)](https://github.com/phoenix1331/laravel-auth-audit/actions)
+[![Tests](https://img.shields.io/github/actions/workflow/status/phoenix1331/laravel-auth-audit/tests.yml?branch=main&label=tests)](https://github.com/phoenix1331/laravel-auth-audit/actions)
 [![Downloads](https://img.shields.io/packagist/dt/phoenix1331/laravel-auth-audit)](https://packagist.org/packages/phoenix1331/laravel-auth-audit)
 
 **Authorisation coverage reporting for Laravel. Larastan tells you your types are right. Auth Audit tells you your endpoints are actually protected.**
