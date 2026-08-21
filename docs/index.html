@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Laravel Auth Audit — Authorisation coverage for Laravel</title>
+  <meta name="description" content="Statically scans your routes, controllers, Form Requests, and Policies to find unprotected endpoints. Fails your CI build when coverage drops below your threshold." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0f12;
+      --surface:   #141720;
+      --surface2:  #0a0c0f;
+      --border:    #1e2330;
+      --border2:   #2a3045;
+      --accent:    #f87171;
+      --accent2:   #fca5a5;
+      --green:     #4ade80;
+      --amber:     #fbbf24;
+      --blue:      #60a5fa;
+      --red:       #f87171;
+      --muted:     #7a8299;
+      --text:      #e2e6f0;
+      --text-dim:  #a8b2cc;
+      --mono:      'Space Mono', monospace;
+      --sans:      'Space Grotesk', system-ui, sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--accent2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(13,15,18,0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .nav-logo {
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+    }
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text-dim);
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .nav-cta {
+      background: var(--accent);
+      color: #0d0f12 !important;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      font-weight: 600 !important;
+    }
+    .nav-cta:hover { opacity: 0.9; }
+
+    /* ── SECTIONS ── */
+    section { padding: 5rem 2rem; }
+    .container { max-width: 1100px; margin: 0 auto; }
+
+    /* ── HERO ── */
+    #hero {
+      padding: 7rem 2rem 5rem;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(248,113,113,0.1);
+      border: 1px solid rgba(248,113,113,0.25);
+      color: var(--accent2);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.35rem 0.9rem;
+      border-radius: 100px;
+      margin-bottom: 1.75rem;
+    }
+    #hero h1 {
+      font-size: clamp(2rem, 5vw, 3.6rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      max-width: 820px;
+      margin: 0 auto 1.25rem;
+    }
+    #hero h1 em {
+      font-style: normal;
+      color: var(--accent);
+    }
+    #hero p {
+      font-size: clamp(1rem, 2vw, 1.2rem);
+      color: var(--text-dim);
+      max-width: 620px;
+      margin: 0 auto 2.5rem;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 3.5rem;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .btn:hover { opacity: 0.88; transform: translateY(-1px); text-decoration: none; }
+    .btn-primary { background: var(--accent); color: #0d0f12; }
+    .btn-secondary { background: var(--surface); border: 1px solid var(--border2); color: var(--text); }
+
+    .install-block {
+      display: inline-flex;
+      align-items: center;
+      gap: 1rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.85rem 1.25rem;
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      color: var(--green);
+    }
+    .install-block span { color: var(--muted); }
+    .copy-btn {
+      background: none;
+      border: 1px solid var(--border2);
+      border-radius: 5px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0.25rem 0.6rem;
+      font-family: var(--sans);
+      font-size: 0.75rem;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+
+    /* ── TERMINAL ── */
+    .terminal {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      text-align: left;
+      max-width: 820px;
+      margin: 3rem auto 0;
+    }
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-red   { background: #ff5f57; }
+    .dot-amber { background: #febc2e; }
+    .dot-green { background: #28c840; }
+    .terminal-title {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-left: 0.5rem;
+    }
+    .terminal-body {
+      padding: 1.25rem 1.5rem;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      line-height: 1.75;
+      overflow-x: auto;
+    }
+    .t-prompt { color: var(--muted); }
+    .t-cmd { color: var(--green); }
+    .t-comment { color: #4a5570; }
+    .t-header { color: var(--text-dim); }
+    .t-ok   { color: var(--green); }
+    .t-warn { color: var(--amber); }
+    .t-fail { color: var(--red); }
+    .t-base { color: var(--blue); }
+    .t-dim  { color: var(--muted); }
+    .t-accent { color: var(--accent2); }
+
+    /* ── PROBLEM SECTION ── */
+    #problem { border-bottom: 1px solid var(--border); }
+    .owasp-callout {
+      background: rgba(248,113,113,0.06);
+      border: 1px solid rgba(248,113,113,0.2);
+      border-radius: 10px;
+      padding: 1.5rem 2rem;
+      margin-bottom: 3rem;
+    }
+    .owasp-callout p { color: var(--text-dim); margin: 0; }
+    .owasp-callout strong { color: var(--accent2); }
+
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+    }
+    .problem-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+    }
+    .problem-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+    .problem-card p { font-size: 0.9rem; color: var(--text-dim); }
+    .problem-card .tag {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      margin-bottom: 0.75rem;
+    }
+    .tag-red   { background: rgba(248,113,113,0.12); color: var(--red); }
+    .tag-green { background: rgba(74,222,128,0.1);   color: var(--green); }
+    .tag-blue  { background: rgba(96,165,250,0.1);   color: var(--blue); }
+
+    /* ── HOW IT WORKS ── */
+    #how { border-bottom: 1px solid var(--border); }
+    .section-label {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+    .section-title {
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+    .section-desc {
+      color: var(--text-dim);
+      font-size: 1.05rem;
+      max-width: 580px;
+      margin-bottom: 3rem;
+    }
+
+    .tiers {
+      display: grid;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .tier {
+      background: var(--surface);
+      padding: 1.5rem 2rem;
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+    .tier-label {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      padding-top: 0.15rem;
+    }
+    .tier-num {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent);
+      display: block;
+      line-height: 1;
+      margin-bottom: 0.25rem;
+    }
+    .tier h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.4rem; }
+    .tier p { font-size: 0.875rem; color: var(--text-dim); line-height: 1.6; }
+    .tier code {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      background: rgba(255,255,255,0.06);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      color: var(--accent2);
+    }
+
+    /* ── ANTI-PATTERNS ── */
+    #antipatterns { border-bottom: 1px solid var(--border); }
+    .ap-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+    .ap-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .ap-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .ap-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: rgba(248,113,113,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+    .ap-name {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--red);
+    }
+    .ap-body { padding: 1.25rem; }
+    .ap-body p { font-size: 0.875rem; color: var(--text-dim); margin-bottom: 1rem; }
+    .code-block {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      overflow: hidden;
+      font-size: 0.78rem;
+      margin-bottom: 0.5rem;
+    }
+    .code-block-header {
+      padding: 0.4rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .code-block-header.bad  { color: var(--red);   }
+    .code-block-header.good { color: var(--green);  }
+    .code-block pre {
+      padding: 0.85rem 1rem;
+      font-family: var(--mono);
+      white-space: pre;
+      overflow-x: auto;
+      color: var(--text-dim);
+      line-height: 1.65;
+    }
+    .hl-red   { color: var(--red); }
+    .hl-green { color: var(--green); }
+    .hl-blue  { color: var(--blue); }
+    .hl-amber { color: var(--amber); }
+    .hl-dim   { color: #4a5570; }
+
+    /* ── BYPASS ── */
+    #bypass { border-bottom: 1px solid var(--border); }
+    .bypass-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 1.5rem;
+    }
+    .expires-badge {
+      display: inline-block;
+      background: rgba(251,191,36,0.1);
+      border: 1px solid rgba(251,191,36,0.25);
+      color: var(--amber);
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      margin-left: auto;
+    }
+
+    /* ── BASELINE ── */
+    #baseline { border-bottom: 1px solid var(--border); }
+    .baseline-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2.5rem;
+    }
+    .baseline-step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+    }
+    .step-num {
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+    }
+    .baseline-step h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .baseline-step p  { font-size: 0.875rem; color: var(--text-dim); }
+    .inline-cmd {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      color: var(--green);
+      margin-top: 0.75rem;
+    }
+
+    /* ── COMPARISON ── */
+    #comparison { border-bottom: 1px solid var(--border); }
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    .compare-table th {
+      text-align: left;
+      padding: 0.85rem 1.25rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .compare-table td {
+      padding: 0.85rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .compare-table tr:last-child td { border-bottom: none; }
+    .compare-table tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    .compare-table .tool-name { font-weight: 600; color: var(--text); }
+    .compare-table .tool-desc { color: var(--text-dim); font-size: 0.85rem; }
+    .check-yes  { color: var(--green); font-size: 1rem; }
+    .check-no   { color: var(--red);   font-size: 1rem; }
+    .check-part { color: var(--amber); font-size: 1rem; }
+
+    /* ── CI ── */
+    #ci { border-bottom: 1px solid var(--border); }
+    .ci-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+      margin-top: 2.5rem;
+    }
+    .ci-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .ci-card-header {
+      padding: 0.85rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .ci-card pre {
+      padding: 1rem 1.25rem;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      line-height: 1.75;
+      overflow-x: auto;
+      color: var(--text-dim);
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }
+    .footer-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .footer-logo { font-family: var(--mono); font-size: 0.85rem; color: var(--muted); }
+    .footer-links { display: flex; gap: 1.5rem; }
+    .footer-links a { color: var(--muted); font-size: 0.85rem; }
+    .footer-links a:hover { color: var(--text); }
+    .footer-mit { color: var(--muted); font-size: 0.8rem; }
+
+    /* ── UTIL ── */
+    .mt-2 { margin-top: 0.5rem; }
+    .mt-4 { margin-top: 1rem; }
+
+    @media (max-width: 640px) {
+      nav { padding: 0 1rem; }
+      .nav-links { display: none; }
+      section { padding: 3.5rem 1.25rem; }
+      .tier { grid-template-columns: 1fr; gap: 0.5rem; }
+      .tier-label { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <span class="nav-logo">laravel-auth-audit</span>
+    <ul class="nav-links">
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#antipatterns">Anti-patterns</a></li>
+      <li><a href="#baseline">Baseline</a></li>
+      <li><a href="#comparison">vs. others</a></li>
+      <li><a href="https://phoenix1331.github.io/laravel-auth-audit/">Docs</a></li>
+      <li><a href="https://github.com/phoenix1331/laravel-auth-audit" class="nav-cta">&#9733; Star on GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="container">
+    <div class="hero-badge">OWASP A01 — Broken Access Control</div>
+    <h1>Your routes are behind <em>auth</em>.<br>But are they actually protected?</h1>
+    <p>Laravel Auth Audit statically scans your routes, controllers, Form Requests, and Policies to report what is and is not authorised. Fails your CI build when coverage drops.</p>
+    <div class="hero-actions">
+      <a href="https://packagist.org/packages/phoenix1331/laravel-auth-audit" class="btn btn-primary">Get started on Packagist</a>
+      <a href="https://github.com/phoenix1331/laravel-auth-audit" class="btn btn-secondary">View on GitHub</a>
+    </div>
+    <div class="install-block">
+      <span>$</span>
+      <code id="install-cmd">composer require phoenix1331/laravel-auth-audit --dev</code>
+      <button class="copy-btn" onclick="copyInstall()" id="copy-btn">copy</button>
+    </div>
+
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="dot dot-red"></div>
+        <div class="dot dot-amber"></div>
+        <div class="dot dot-green"></div>
+        <span class="terminal-title">php artisan auth-audit:run --min=90</span>
+      </div>
+      <div class="terminal-body">
+        <div><span class="t-dim">  Route                          Verb   Auth Check                          Status</span></div>
+        <div><span class="t-dim">  ──────────────────────────────────────────────────────────────────────────────────</span></div>
+        <div><span class="t-dim">  /orders/{order}                PUT    </span><span class="t-ok">$this->authorize()</span><span class="t-dim">                  </span><span class="t-ok">✓ authorised</span></div>
+        <div><span class="t-dim">  /teams/{team}/orders/{order}   GET    </span><span class="t-fail">unscoped-nested-binding</span><span class="t-dim">             </span><span class="t-fail">✗ unauthorised</span></div>
+        <div><span class="t-dim">  /invoices/{id}                 GET    </span><span class="t-fail">unbound-identifier</span><span class="t-dim">                  </span><span class="t-fail">✗ unauthorised</span></div>
+        <div><span class="t-dim">  /reports/export                GET    </span><span class="t-ok">can:view-reports</span><span class="t-dim">                    </span><span class="t-ok">✓ authorised</span></div>
+        <div><span class="t-dim">  /webhooks/stripe               POST   </span><span class="t-dim">Signature verified</span><span class="t-dim">                   - skipped</span></div>
+        <div><span class="t-dim">  /users/{id}                    GET    </span><span class="t-base">unbound-identifier</span><span class="t-dim">                  </span><span class="t-base">~ baselined</span></div>
+        <div><span class="t-dim">  ──────────────────────────────────────────────────────────────────────────────────</span></div>
+        <div class="mt-2"><span class="t-accent">  Coverage: 82% (211/257 routes)</span></div>
+        <div><span class="t-dim">  18 unauthorised · 28 excluded · 13 skipped · 4 baselined</span></div>
+        <div class="mt-2"><span class="t-fail">  error: coverage 82% is below the required threshold of 90%</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<section id="problem">
+  <div class="container">
+    <div class="owasp-callout">
+      <p><strong>Broken Access Control</strong> has been the #1 vulnerability on the OWASP Top 10 for multiple release cycles. The most common form in Laravel is IDOR - Insecure Direct Object Reference. A logged-in user walks <code>/users/1</code>, <code>/users/2</code>, <code>/users/3</code> in the address bar and the app resolves every one, because nothing ever checked whether that user is <em>allowed</em> to see each record.</p>
+    </div>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <span class="tag tag-red">false security</span>
+        <h3>Auth middleware proves identity, not access</h3>
+        <p>Adding <code>auth</code> middleware to a route proves <em>who</em> the user is. It says nothing about whether they are allowed to access <em>this specific record</em>.</p>
+      </div>
+      <div class="problem-card">
+        <span class="tag tag-red">invisible bug</span>
+        <h3>Policies exist but are never wired up</h3>
+        <p>A Policy class in <code>app/Policies/</code> protects nothing unless it is actually called. Code review rarely catches the gap between presence and invocation.</p>
+      </div>
+      <div class="problem-card">
+        <span class="tag tag-blue">the solution</span>
+        <h3>Static analysis that follows the route graph</h3>
+        <p>Auth Audit walks route to controller to model, checking every step for a real authorisation signal. No runtime required — it runs in CI alongside your type checker.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="container">
+    <div class="section-label">Detection engine</div>
+    <h2 class="section-title">Four tiers. One answer per route.</h2>
+    <p class="section-desc">The detector runs tiers in confidence order and stops at the first signal it finds. No signal means the route is flagged.</p>
+
+    <div class="tiers">
+      <div class="tier">
+        <div class="tier-label">
+          <span class="tier-num">1</span>
+          Middleware
+        </div>
+        <div>
+          <h3>Route middleware</h3>
+          <p><code>can:</code> middleware on the route definition is an explicit authorisation signal. Custom middleware strings can be registered in <code>custom_signals</code> config to extend this tier.</p>
+        </div>
+      </div>
+      <div class="tier">
+        <div class="tier-label">
+          <span class="tier-num">2</span>
+          AST scan
+        </div>
+        <div>
+          <h3>Controller body — nikic/php-parser</h3>
+          <p>The controller file is parsed as an AST. The detector recognises <code>$this->authorize()</code>, <code>Gate::allows()</code>, <code>abort_unless($user->can(...))</code>, relationship-scoped retrieval, and more. Form Request <code>authorize()</code> bodies are inspected too — a bare <code>return true;</code> is flagged as an anti-pattern.</p>
+        </div>
+      </div>
+      <div class="tier">
+        <div class="tier-label">
+          <span class="tier-num">3</span>
+          Policy
+        </div>
+        <div>
+          <h3>Registered Policy for bound model</h3>
+          <p>For each Eloquent model bound via route-model binding, the detector checks whether a Policy is registered and whether it has a method matching the implied CRUD action. Policy bodies are also inspected for the <code>instance-blind-policy</code> anti-pattern.</p>
+        </div>
+      </div>
+      <div class="tier">
+        <div class="tier-label">
+          <span class="tier-num">4</span>
+          Custom
+        </div>
+        <div>
+          <h3>Custom signals escape hatch</h3>
+          <p>If your authorisation lives in a service layer or custom middleware, register the class method or middleware name in <code>custom_signals</code> config. This prevents false positives for non-standard patterns.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ANTI-PATTERNS -->
+<section id="antipatterns">
+  <div class="container">
+    <div class="section-label">Anti-pattern detection</div>
+    <h2 class="section-title">Auth that looks right but isn't.</h2>
+    <p class="section-desc">v2 detects five classes of broken authorisation that pass a quick code review but provide no real protection.</p>
+
+    <div class="ap-grid">
+
+      <div class="ap-card">
+        <div class="ap-header">
+          <div class="ap-icon">&#9741;</div>
+          <div>
+            <div class="ap-name">unscoped-nested-binding</div>
+          </div>
+        </div>
+        <div class="ap-body">
+          <p>Nested route-model binding without <code>scopeBindings()</code>. Auth on the parent does not prove the child belongs to it.</p>
+          <div class="code-block">
+            <div class="code-block-header bad">&#x2717; flagged</div>
+            <pre><span class="hl-dim">// $order can belong to any team</span>
+Route::get(<span class="hl-amber">'/teams/{team}/orders/{order}'</span>,
+    [OrderController::class, <span class="hl-amber">'show'</span>]);</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block-header good">&#x2713; safe</div>
+            <pre>Route::get(<span class="hl-amber">'/teams/{team}/orders/{order}'</span>,
+    [OrderController::class, <span class="hl-amber">'show'</span>])
+    -><span class="hl-green">scopeBindings()</span>;</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="ap-card">
+        <div class="ap-header">
+          <div class="ap-icon">&#9741;</div>
+          <div>
+            <div class="ap-name">class-level-check-on-instance-route</div>
+          </div>
+        </div>
+        <div class="ap-body">
+          <p>Calling <code>authorize()</code> with <code>Model::class</code> instead of the bound instance. The policy receives a class string, not the record.</p>
+          <div class="code-block">
+            <div class="code-block-header bad">&#x2717; flagged</div>
+            <pre>$this->authorize(<span class="hl-amber">'update'</span>, <span class="hl-red">Order::class</span>);
+<span class="hl-dim">// policy cannot verify ownership</span></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block-header good">&#x2713; safe</div>
+            <pre>$this->authorize(<span class="hl-amber">'update'</span>, <span class="hl-green">$order</span>);
+<span class="hl-dim">// pass the bound instance</span></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="ap-card">
+        <div class="ap-header">
+          <div class="ap-icon">&#9741;</div>
+          <div>
+            <div class="ap-name">instance-blind-policy</div>
+          </div>
+        </div>
+        <div class="ap-body">
+          <p>A policy method that never references the model parameter. It checks the user's role, not who owns the record.</p>
+          <div class="code-block">
+            <div class="code-block-header bad">&#x2717; flagged</div>
+            <pre><span class="hl-blue">public function</span> update(User $user): bool
+{
+    <span class="hl-dim">// checks role, not ownership</span>
+    <span class="hl-blue">return</span> $user-><span class="hl-red">isAdmin()</span>;
+}</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block-header good">&#x2713; safe</div>
+            <pre><span class="hl-blue">public function</span> update(
+    User $user, Order <span class="hl-green">$order</span>
+): bool {
+    <span class="hl-blue">return</span> <span class="hl-green">$order->user_id === $user->id</span>;
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="ap-card">
+        <div class="ap-header">
+          <div class="ap-icon">&#9741;</div>
+          <div>
+            <div class="ap-name">unbound-identifier</div>
+          </div>
+        </div>
+        <div class="ap-body">
+          <p>A raw <code>{id}</code> param where the controller calls <code>findOrFail()</code> without scoping to the authenticated user first.</p>
+          <div class="code-block">
+            <div class="code-block-header bad">&#x2717; flagged</div>
+            <pre><span class="hl-dim">// any user can access any order</span>
+$order = Order::<span class="hl-red">findOrFail($id)</span>;</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block-header good">&#x2713; safe</div>
+            <pre><span class="hl-dim">// scoped to the authenticated user</span>
+$order = $request->user()
+    -><span class="hl-green">orders()->findOrFail($id)</span>;</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="ap-card">
+        <div class="ap-header">
+          <div class="ap-icon">&#9741;</div>
+          <div>
+            <div class="ap-name">discarded-gate-result</div>
+          </div>
+        </div>
+        <div class="ap-body">
+          <p><code>Gate::allows()</code> called as a bare statement whose return value is never used. The check runs but has no effect.</p>
+          <div class="code-block">
+            <div class="code-block-header bad">&#x2717; flagged</div>
+            <pre><span class="hl-dim">// result discarded, no effect</span>
+Gate::<span class="hl-red">allows</span>(<span class="hl-amber">'update'</span>, $order);</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block-header good">&#x2713; safe</div>
+            <pre>abort_unless(
+    Gate::<span class="hl-green">allows</span>(<span class="hl-amber">'update'</span>, $order), 403
+);</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="ap-card">
+        <div class="ap-header">
+          <div class="ap-icon">&#9741;</div>
+          <div>
+            <div class="ap-name">bare-true-form-request</div>
+          </div>
+        </div>
+        <div class="ap-body">
+          <p>A Form Request whose <code>authorize()</code> method contains only <code>return true;</code>. Structurally present, functionally absent.</p>
+          <div class="code-block">
+            <div class="code-block-header bad">&#x2717; flagged</div>
+            <pre><span class="hl-blue">public function</span> authorize(): bool
+{
+    <span class="hl-blue">return</span> <span class="hl-red">true</span>; <span class="hl-dim">// always allows</span>
+}</pre>
+          </div>
+          <div class="code-block">
+            <div class="code-block-header good">&#x2713; safe</div>
+            <pre><span class="hl-blue">public function</span> authorize(): bool
+{
+    <span class="hl-blue">return</span> <span class="hl-green">$this->route('order')
+        ->user_id === $this->user()->id</span>;
+}</pre>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- BYPASS -->
+<section id="bypass">
+  <div class="container">
+    <div class="section-label">Escape hatches</div>
+    <h2 class="section-title">Bypass with intent. Not silence.</h2>
+    <p class="section-desc">Every bypass requires a mandatory reason string. Silent suppression is not possible. Temporary bypasses can carry an expiry date — past the date, they automatically revert to violations.</p>
+
+    <div class="bypass-grid">
+      <div>
+        <div class="section-label mt-4" style="margin-bottom:0.5rem;">PHP Attribute</div>
+        <div class="code-block">
+          <div class="code-block-header" style="color:var(--text-dim); justify-content:space-between;">
+            WebhookController.php
+          </div>
+          <pre><span class="hl-dim">use Phoenix1331\LaravelAuthAudit\Attributes\WithoutAuthAudit;</span>
+
+<span class="hl-blue">#[WithoutAuthAudit(</span><span class="hl-amber">'Signature verified via Stripe
+ webhook secret, not policy-gated'</span><span class="hl-blue">)]</span>
+<span class="hl-blue">public function</span> stripe(): void { ... }
+
+<span class="hl-dim">// with expiry — cannot silently become permanent</span>
+<span class="hl-blue">#[WithoutAuthAudit(</span>
+    <span class="hl-amber">'Policy not written yet'</span>,
+    expires: <span class="hl-amber">'2026-12-31'</span>
+<span class="hl-blue">)]</span>
+<span class="hl-blue">public function</span> betaExport(): void { ... }</pre>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-label mt-4" style="margin-bottom:0.5rem;">Route macro</div>
+        <div class="code-block">
+          <div class="code-block-header" style="color:var(--text-dim);">routes/web.php</div>
+          <pre>Route::get(<span class="hl-amber">'/up'</span>, fn () => response()->json([<span class="hl-amber">'ok'</span> => true]))
+    ->name(<span class="hl-amber">'health'</span>)
+    -><span class="hl-green">withoutAuthAudit(</span>
+        <span class="hl-amber">'Health check, no sensitive data'</span>
+    <span class="hl-green">)</span>;</pre>
+        </div>
+
+        <div class="section-label mt-4" style="margin-bottom:0.5rem;">Custom signals config</div>
+        <div class="code-block">
+          <div class="code-block-header" style="color:var(--text-dim);">config/auth-audit.php</div>
+          <pre><span class="hl-amber">'custom_signals'</span> => [
+    <span class="hl-amber">'ensure.team.owner'</span>,
+    <span class="hl-amber">'App\\Services\\TeamAuthService::authorize'</span>,
+],</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BASELINE -->
+<section id="baseline">
+  <div class="container">
+    <div class="section-label">Gradual adoption</div>
+    <h2 class="section-title">Adopt on large codebases without a big bang fix.</h2>
+    <p class="section-desc">The baseline system records the current state and enforces "no new violations" in CI without requiring every existing issue to be fixed upfront.</p>
+
+    <div class="baseline-steps">
+      <div class="baseline-step">
+        <div class="step-num">Step 1</div>
+        <h3>Generate the baseline</h3>
+        <p>Snapshot current violations so CI does not break immediately on an existing codebase.</p>
+        <div class="inline-cmd">php artisan auth-audit:run --generate-baseline</div>
+      </div>
+      <div class="baseline-step">
+        <div class="step-num">Step 2</div>
+        <h3>Enforce in CI</h3>
+        <p>Baselined routes appear as <code>~ baselined</code> and are excluded from the coverage percentage. New routes get no free pass.</p>
+        <div class="inline-cmd">auth-audit:run --compare=auth-audit-baseline.json --min=80</div>
+      </div>
+      <div class="baseline-step">
+        <div class="step-num">Step 3</div>
+        <h3>Shrink it over time</h3>
+        <p>Fix a violation, regenerate the baseline, and the coverage number improves automatically. When the file is empty, remove <code>--compare</code>.</p>
+        <div class="inline-cmd">php artisan auth-audit:run --generate-baseline</div>
+      </div>
+    </div>
+
+    <div class="terminal" style="margin-top:2.5rem;">
+      <div class="terminal-bar">
+        <div class="dot dot-red"></div>
+        <div class="dot dot-amber"></div>
+        <div class="dot dot-green"></div>
+        <span class="terminal-title">php artisan auth-audit:run --compare=auth-audit-baseline.json --min=90</span>
+      </div>
+      <div class="terminal-body">
+        <div><span class="t-dim">  /users/{id}      GET   unbound-identifier   </span><span class="t-base">~ baselined</span><span class="t-dim">   (suppressed)</span></div>
+        <div><span class="t-dim">  /posts/{post}    PUT   </span><span class="t-ok">$this->authorize()</span><span class="t-dim">  </span><span class="t-ok">✓ authorised</span><span class="t-dim">  (new route, passes)</span></div>
+        <div><span class="t-dim">  /invoices/{id}   GET   </span><span class="t-fail">unbound-identifier</span><span class="t-dim">  </span><span class="t-fail">✗ unauthorised</span><span class="t-dim">  (new route, fails)</span></div>
+        <div class="mt-2"><span class="t-fail">  error: new unauthorised routes detected outside baseline</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARISON -->
+<section id="comparison">
+  <div class="container">
+    <div class="section-label">vs. existing tooling</div>
+    <h2 class="section-title">Not a replacement. A gap filler.</h2>
+    <p class="section-desc">These tools are excellent at what they do. None of them walk the route-to-controller-to-policy graph specifically for authorisation coverage.</p>
+
+    <div style="border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-top: 2.5rem;">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>Tool</th>
+            <th>Type errors</th>
+            <th>General security</th>
+            <th>Authz coverage per route</th>
+            <th>IDOR anti-patterns</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div class="tool-name">Larastan / PHPStan</div>
+              <div class="tool-desc">Static analysis, type checking</div>
+            </td>
+            <td><span class="check-yes">&#10003;</span></td>
+            <td><span class="check-no">&#10007;</span></td>
+            <td><span class="check-no">&#10007;</span></td>
+            <td><span class="check-no">&#10007;</span></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tool-name">Enlightn</div>
+              <div class="tool-desc">Laravel best-practice auditing</div>
+            </td>
+            <td><span class="check-part">~</span></td>
+            <td><span class="check-yes">&#10003;</span></td>
+            <td><span class="check-part">~</span></td>
+            <td><span class="check-no">&#10007;</span></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tool-name">Spatie Laravel Permission</div>
+              <div class="tool-desc">Role and permission management</div>
+            </td>
+            <td><span class="check-no">&#10007;</span></td>
+            <td><span class="check-no">&#10007;</span></td>
+            <td><span class="check-no">&#10007;</span></td>
+            <td><span class="check-no">&#10007;</span></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tool-name" style="color:var(--accent2);">Laravel Auth Audit</div>
+              <div class="tool-desc">Authorisation coverage auditing</div>
+            </td>
+            <td><span class="check-no">&#10007;</span></td>
+            <td><span class="check-part">~</span></td>
+            <td><span class="check-yes">&#10003;</span></td>
+            <td><span class="check-yes">&#10003;</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- CI -->
+<section id="ci">
+  <div class="container">
+    <div class="section-label">CI integration</div>
+    <h2 class="section-title">One line in your pipeline.</h2>
+    <p class="section-desc">Add the audit step after your tests. The command exits 0 on pass, 1 on failure — any CI system works.</p>
+
+    <div class="ci-grid">
+      <div class="ci-card">
+        <div class="ci-card-header">
+          <span>GitHub Actions — simple</span>
+        </div>
+        <pre><span class="hl-dim">- name:</span> <span class="hl-green">run auth audit</span>
+<span class="hl-dim">  run:</span> php artisan auth-audit:run <span class="hl-amber">--min=90</span></pre>
+      </div>
+
+      <div class="ci-card">
+        <div class="ci-card-header">
+          <span>GitHub Actions — with baseline</span>
+        </div>
+        <pre><span class="hl-dim">- name:</span> <span class="hl-green">run auth audit</span>
+<span class="hl-dim">  run:</span> php artisan auth-audit:run \
+         <span class="hl-amber">--compare=auth-audit-baseline.json</span> \
+         <span class="hl-amber">--min=90</span></pre>
+      </div>
+
+      <div class="ci-card">
+        <div class="ci-card-header">
+          <span>JSON output for downstream tooling</span>
+        </div>
+        <pre>php artisan auth-audit:run <span class="hl-amber">--json</span> \
+  | jq <span class="hl-amber">'.summary'</span></pre>
+      </div>
+
+      <div class="ci-card">
+        <div class="ci-card-header">
+          <span>HTML report artifact</span>
+        </div>
+        <pre>php artisan auth-audit:run \
+  <span class="hl-amber">--html=storage/auth-audit/report.html</span>
+
+<span class="hl-dim">- name:</span> upload report
+<span class="hl-dim">  uses:</span> actions/upload-artifact@v4
+<span class="hl-dim">  with:</span>
+<span class="hl-dim">    name:</span> auth-audit-report
+<span class="hl-dim">    path:</span> storage/auth-audit/report.html</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <span class="footer-logo">phoenix1331/laravel-auth-audit</span>
+    <div class="footer-links">
+      <a href="https://packagist.org/packages/phoenix1331/laravel-auth-audit">Packagist</a>
+      <a href="https://phoenix1331.github.io/laravel-auth-audit/">Docs</a>
+      <a href="https://github.com/phoenix1331/laravel-auth-audit">GitHub</a>
+      <a href="https://github.com/phoenix1331/laravel-auth-audit/issues">Issues</a>
+      <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/">OWASP A01</a>
+    </div>
+    <span class="footer-mit">MIT licence</span>
+  </div>
+</footer>
+
+<script>
+  function copyInstall() {
+    const cmd = document.getElementById('install-cmd').textContent;
+    navigator.clipboard.writeText(cmd).then(() => {
+      const btn = document.getElementById('copy-btn');
+      btn.textContent = 'copied!';
+      btn.style.color = 'var(--green)';
+      btn.style.borderColor = 'var(--green)';
+      setTimeout(() => {
+        btn.textContent = 'copy';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+      }, 2000);
+    });
+  }
+</script>
+
+</body>
+</html>

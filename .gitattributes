@@ -1,0 +1,12 @@
+* text=auto
+
+# exclude from composer installs
+/docs export-ignore
+/tests export-ignore
+/.github export-ignore
+/.git export-ignore
+/test-app export-ignore
+phpunit.xml export-ignore
+pint.json export-ignore
+CHANGELOG.md export-ignore
+UPGRADING.md export-ignore
