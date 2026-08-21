@@ -48,15 +48,6 @@ jobs:
             13) echo "version=^11.0" >> $GITHUB_OUTPUT ;;
           esac
 
-      - name: select pest version
-        id: pest
-        run: |
-          case "${{ matrix.php }}" in
-            8.2) echo "version=^3.0" >> $GITHUB_OUTPUT ;;
-            8.3) echo "version=^4.0" >> $GITHUB_OUTPUT ;;
-            8.4) echo "version=^5.0" >> $GITHUB_OUTPUT ;;
-          esac
-
       - name: disable composer security advisory blocking for test dependencies
         run: composer config --no-interaction policy.advisories.block false
 
@@ -67,12 +58,10 @@ jobs:
             "illuminate/console:^${{ matrix.laravel }}.0" \
             "illuminate/routing:^${{ matrix.laravel }}.0" \
             "orchestra/testbench:${{ steps.testbench.outputs.version }}" \
-            "pestphp/pest:${{ steps.pest.outputs.version }}" \
-            "pestphp/pest-plugin-laravel:${{ steps.pest.outputs.version }}" \
             --no-interaction --no-update
 
       - name: install dependencies
-        run: composer update --${{ matrix.dependency-version }} --prefer-dist --no-interaction --with-all-dependencies
+        run: composer update --${{ matrix.dependency-version }} --prefer-dist --no-interaction
 
       - name: lint
         if: matrix.dependency-version == 'prefer-stable'
