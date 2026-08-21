@@ -1,0 +1,71 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4']
+        laravel: ['10', '11', '12', '13']
+        dependency-version: [prefer-lowest, prefer-stable]
+        exclude:
+          # laravel 13 requires php 8.3+
+          - laravel: '13'
+            php: '8.2'
+          # testbench 8 (laravel 10) requires pest 2, not compatible with prefer-lowest on php 8.4
+          - laravel: '10'
+            php: '8.4'
+            dependency-version: prefer-lowest
+
+    name: php ${{ matrix.php }} / laravel ${{ matrix.laravel }} / ${{ matrix.dependency-version }}
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup php
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, xml, ctype, fileinfo
+          coverage: none
+
+      - name: select testbench version
+        id: testbench
+        run: |
+          case "${{ matrix.laravel }}" in
+            10) echo "version=^8.0" >> $GITHUB_OUTPUT ;;
+            11) echo "version=^9.0" >> $GITHUB_OUTPUT ;;
+            12) echo "version=^10.0" >> $GITHUB_OUTPUT ;;
+            13) echo "version=^11.0" >> $GITHUB_OUTPUT ;;
+          esac
+
+      - name: disable composer security advisory blocking for test dependencies
+        run: composer config --no-interaction policy.advisories.block false
+
+      - name: require specific laravel and testbench versions
+        run: |
+          composer require \
+            "illuminate/support:^${{ matrix.laravel }}.0" \
+            "illuminate/console:^${{ matrix.laravel }}.0" \
+            "illuminate/routing:^${{ matrix.laravel }}.0" \
+            "orchestra/testbench:${{ steps.testbench.outputs.version }}" \
+            --no-interaction --no-update
+
+      - name: install dependencies
+        run: composer update --${{ matrix.dependency-version }} --prefer-dist --no-interaction
+
+      - name: lint
+        if: matrix.dependency-version == 'prefer-stable'
+        run: vendor/bin/pint --test
+
+      - name: run tests
+        run: vendor/bin/pest
